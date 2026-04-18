@@ -31,7 +31,8 @@
 
 ## Phase 2
 
-### TODO-1: Falsification Trigger Frozen-Date Enforcement in Code
+### TODO-1: Falsification Trigger Frozen-Date Enforcement in Code — **CLOSED 2026-04-18**
+**Evidence:** `src/nyse_ats/monitoring/falsification.py:50-82` (`verify_frozen_hash` method, SHA-256 compute at L66, mismatch detection at L73-79).
 **What:** `falsification.py` should hash the triggers config at freeze time and refuse to evaluate if the hash changes.
 **Why:** The frozen_date is currently a YAML comment — nothing prevents editing thresholds after the freeze date. Under drawdown pressure, the temptation to "adjust" thresholds is real. This is the same class of bug as the 0050 ETF split silently corrupting regime detection for months on TWSE.
 **How to apply:** On first run after frozen_date, compute SHA-256 of falsification_triggers.yaml and store it in live.duckdb. On every subsequent run, recompute and compare. If mismatch → VETO + Telegram alert with diff. ~30 LOC in falsification.py.
@@ -83,7 +84,8 @@
 **How to apply:** Add RSP/SPY ratio to dashboard. Alert when ratio crosses 6-month moving average (breadth regime change). Consider as input to deployment timing (don't launch live during extreme concentration).
 **Depends on:** Dashboard (Phase 4), RSP data (TODO-9).
 
-### TODO-2: Corporate Action Guard Between Signal and Execution
+### TODO-2: Corporate Action Guard Between Signal and Execution — **CLOSED 2026-04-18**
+**Evidence:** `src/nyse_ats/execution/nautilus_bridge.py:99-157` (`pre_submit` method screens plans via `detect_pending_actions`, filters affected symbols, emits WARNING diagnostic).
 **What:** Before submitting TradePlan orders on Monday, check for corporate actions (splits, dividends) on held stocks that occurred between Friday close (signal generation) and Monday open (execution).
 **Why:** A 4:1 split between signal and execution means the TradePlan has target_shares based on pre-split prices. Without a guard, you'd buy 4x the intended position. This is the EXACT bug class that corrupted TWSE regime detection for months (0050 ETF 4:1 split, Lesson_Learn Section 2.1).
 **How to apply:** `nautilus_bridge.py` queries FinMind/data source for corporate actions on held symbols since TradePlan.decision_timestamp. If any found → cancel affected orders, re-run portfolio.build() with adjusted prices, regenerate TradePlan. ~50 LOC.
@@ -94,7 +96,8 @@
 > From documentation gap analysis vs enterprise-tier standards (AQR / Two Sigma / MSCI / Bloomberg / SR 11-7).
 > Current 12-doc set has strong coverage; the items below close the remaining gaps auditors, LPs, and regulators expect.
 
-### TODO-13: Independent Validation Section in MODEL_VALIDATION.md
+### TODO-13: Independent Validation Section in MODEL_VALIDATION.md — **PARTIAL CLOSURE 2026-04-18**
+**Evidence:** `docs/MODEL_VALIDATION.md:36-48` ("Audit posture" names operator as developer+validator, labels independence as "partial", references `INDEPENDENT_VALIDATION_DRAFT.md`). **Still missing:** explicit validation date + planned external review date fields — reopen as TODO-13a if auditor requests.
 **What:** Add an explicit "Independence" subsection naming the developer(s), validator(s), dates, and any scope limitations. If validator = developer, state that honestly and list a target date for third-party review.
 **Why:** SR 11-7 §V requires model validation independent of development. Self-authored validation is acceptable as an interim state only if explicitly documented. Silent self-validation is an audit finding.
 **How to apply:** Add §1.5 "Independence statement" to `MODEL_VALIDATION.md`. Fields: developer, validator, validation date, validator independence (yes/no/partial), planned external review date. Update at each material model change.
@@ -174,7 +177,8 @@
 **Risk of overfitting:** Still high. With 8 years of data and 3 regime definitions already examined, any further conditioning is implicitly mined. One variant, pre-registered, one screen, one verdict — OR shelve the factor family.
 **Depends on:** TODO-3 (EDGAR + FINRA adapters) to enable fundamental factor screening before revisiting this decision.
 
-### TODO-24: Run high_52w and momentum_2_12 Screens Next
+### TODO-24: Run high_52w and momentum_2_12 Screens Next — **CLOSED 2026-04-18**
+**Evidence:** `results/factors/high_52w/` and `results/factors/momentum_2_12/` both exist with screen outputs. Both failed G0-G5 on real data (see `docs/GOVERNANCE_LOG.md` 6-of-6 failure state).
 **What:** Run `scripts/screen_factor.py --factor high_52w` and `scripts/screen_factor.py --factor momentum_2_12` on the populated `research.duckdb` before making any ensemble composition decisions.
 **Why:** These two are price-only, immediately runnable, and represent the Tier 1 and Tier 2 priors. Three real-data data points (ivol, high_52w, momentum) are the minimum to distinguish "the framework is fine, ivol just doesn't transfer" from "our backtest methodology has a systemic problem." Don't generalize from n=1.
 **How to apply:** Run both screens. Log forecasts to research log BEFORE running (use `scripts/append_research_log.py`). Update `docs/OUTCOME_VS_FORECAST.md` after each run. If both also fail, escalate and investigate methodology (label timing, purge gap, universe survivorship bias) before screening more factors.
