@@ -96,8 +96,9 @@ def _cv_params_potentially_invalid(draw: st.DrawFn) -> dict:
 
 
 def _generate_date_index(n_days: int) -> pd.DatetimeIndex:
-    """Generate a DatetimeIndex of business days."""
-    return pd.bdate_range(start="2018-01-02", periods=n_days, freq="B")
+    """Generate a DatetimeIndex of business days inside the research window (<= 2023-12-31)."""
+    # Start early enough that even max n_days (3000) stays at or before 2023-12-31.
+    return pd.bdate_range(start="2012-01-02", periods=n_days, freq="B")
 
 
 # ── Property: purge_days >= target_horizon_days ──────────────────────────────

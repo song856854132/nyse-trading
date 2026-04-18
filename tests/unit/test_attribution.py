@@ -22,7 +22,7 @@ def _build_single_date_data(
     Returns (portfolio_weights, stock_returns, factor_exposures, sector_map).
     """
     rng = np.random.default_rng(seed)
-    dt = date(2024, 1, 15)
+    dt = date(2022, 1, 15)
     symbols = [f"SYM{i:03d}" for i in range(n_stocks)]
     sectors = ["Tech", "Health", "Finance", "Energy", "Consumer"]
 
@@ -59,7 +59,7 @@ def _build_multi_date_data(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series]:
     """Build multi-date test data."""
     rng = np.random.default_rng(seed)
-    dates = [date(2024, 1, d) for d in range(10, 10 + n_dates)]
+    dates = [date(2022, 1, d) for d in range(10, 10 + n_dates)]
     symbols = [f"SYM{i:03d}" for i in range(n_stocks)]
     sectors = ["Tech", "Health", "Finance", "Energy", "Consumer"]
 
@@ -123,7 +123,7 @@ class TestSectorAttributionAllocationEffect:
     """Overweighting a winning sector should produce positive allocation effect."""
 
     def test_sector_attribution_allocation_effect(self):
-        dt = date(2024, 3, 1)
+        dt = date(2022, 3, 1)
         symbols = ["A", "B", "C", "D"]
         sectors = ["Tech", "Tech", "Health", "Health"]
 
@@ -222,8 +222,8 @@ class TestAttributionReportHasAllFields:
             stock_returns=sr,
             factor_exposures=fe,
             sector_map=sector_map,
-            period_start=date(2024, 1, 10),
-            period_end=date(2024, 1, 14),
+            period_start=date(2022, 1, 10),
+            period_end=date(2022, 1, 14),
         )
 
         assert isinstance(report, AttributionReport)
@@ -232,5 +232,5 @@ class TestAttributionReportHasAllFields:
         assert isinstance(report.total_return, float)
         assert isinstance(report.period_start, date)
         assert isinstance(report.period_end, date)
-        assert report.period_start == date(2024, 1, 10)
-        assert report.period_end == date(2024, 1, 14)
+        assert report.period_start == date(2022, 1, 10)
+        assert report.period_end == date(2022, 1, 14)

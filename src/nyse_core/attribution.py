@@ -12,7 +12,7 @@ from datetime import date
 
 import pandas as pd
 
-from nyse_core.contracts import AttributionReport, Diagnostics
+from nyse_core.contracts import AttributionReport, Diagnostics, reject_holdout_dates
 
 _MOD = "attribution"
 
@@ -65,6 +65,13 @@ def compute_attribution(
     """
     diag = Diagnostics()
     src = f"{_MOD}.compute_attribution"
+
+    # Iron rule 1: refuse to attribute into the holdout window.
+    reject_holdout_dates(period_start, period_end, source=src)
+    if "date" in portfolio_weights.columns:
+        reject_holdout_dates(pd.to_datetime(portfolio_weights["date"]), source=src)
+    if "date" in stock_returns.columns:
+        reject_holdout_dates(pd.to_datetime(stock_returns["date"]), source=src)
 
     # ── Validate inputs ──────────────────────────────────────────────────
     if portfolio_weights.empty or stock_returns.empty:

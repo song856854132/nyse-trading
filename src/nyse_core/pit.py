@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from nyse_core.contracts import Diagnostics
+from nyse_core.contracts import Diagnostics, reject_holdout_dates
 from nyse_core.schema import COL_DATE
 
 if TYPE_CHECKING:
@@ -53,6 +53,12 @@ def enforce_pit_lags(
     -------
     (pd.DataFrame, Diagnostics)
     """
+    # Iron rule 1: refuse to stamp PiT against holdout dates.
+    # Note: only `as_of_date` is guarded; filing dates in the `data` frame
+    # may legitimately lie in the future relative to as_of_date — the whole
+    # point of PiT is to NaN them out cleanly.
+    reject_holdout_dates(as_of_date, source=_SRC)
+
     diag = Diagnostics()
     result = data.copy()
 

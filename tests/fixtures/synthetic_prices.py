@@ -21,7 +21,7 @@ from nyse_core.schema import (
 )
 
 
-def _generate_trading_dates(n_days: int, start_date: str = "2022-01-03") -> pd.DatetimeIndex:
+def _generate_trading_dates(n_days: int, start_date: str = "2020-01-02") -> pd.DatetimeIndex:
     """Generate n_days of weekday-only trading dates starting from start_date."""
     # Generate enough business days to cover n_days
     dates = pd.bdate_range(start=start_date, periods=n_days, freq="B")

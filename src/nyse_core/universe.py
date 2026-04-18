@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from nyse_core.contracts import Diagnostics
+from nyse_core.contracts import Diagnostics, reject_holdout_dates
 from nyse_core.schema import COL_DATE, COL_SYMBOL
 
 if TYPE_CHECKING:
@@ -45,6 +45,9 @@ def get_universe_at_date(
     (list[str], Diagnostics)
         Sorted list of member symbols and diagnostics.
     """
+    # Iron rule 1: reconstitution must not reach into holdout.
+    reject_holdout_dates(target_date, source=_SRC)
+
     diag = Diagnostics()
     members: set[str] = set(initial_members)
 

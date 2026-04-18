@@ -12,15 +12,88 @@ ARCHITECTURE:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from enum import StrEnum, unique
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from datetime import date, datetime
+import pandas as pd
 
-    import pandas as pd
+if TYPE_CHECKING:
+    from datetime import datetime
 
     from nyse_core.schema import RegimeState, Severity, Side
+
+
+# ── Holdout leakage guard (iron rule 1) ───────────────────────────────────────
+#
+# Research period:  up to and including 2023-12-31.
+# Holdout period:   2024-01-01 through 2025-12-31 (reserved for one-shot test).
+#
+# Any nyse_core function that accepts a date, date range, or date-bearing
+# DataFrame/Index must route boundary dates through ``reject_holdout_dates``.
+# A boundary strictly greater than ``HOLDOUT_BOUNDARY`` raises
+# ``HoldoutLeakageError`` immediately — before any data is read or computed on.
+
+HOLDOUT_BOUNDARY: date = date(2023, 12, 31)
+
+
+class HoldoutLeakageError(ValueError):
+    """Raised when a nyse_core entrypoint is asked to touch holdout dates.
+
+    Iron rule 1 from ``docs/RALPH_LOOP_TASK.md``: no read, query, or backtest
+    on any date after 2023-12-31. Holdout (2024-01-01 → 2025-12-31) is a
+    one-shot evaluation reserved for the final pre-deployment gate.
+    """
+
+
+def reject_holdout_dates(
+    *candidates: date | pd.Timestamp | pd.DatetimeIndex | pd.Series | None,
+    source: str,
+) -> None:
+    """Raise ``HoldoutLeakageError`` if any candidate exceeds ``HOLDOUT_BOUNDARY``.
+
+    Accepts a heterogeneous mix of scalar dates, ``pd.Timestamp``, pandas
+    ``DatetimeIndex``, or ``pd.Series`` of datetimes. ``None`` is skipped so
+    callers can forward optional parameters directly.
+
+    Parameters
+    ----------
+    *candidates
+        Dates or date containers to validate.
+    source
+        Caller identifier (e.g. ``"pit.enforce_pit_lags"``) — surfaced in the
+        error message to make debugging unambiguous.
+
+    Raises
+    ------
+    HoldoutLeakageError
+        If any normalized date is strictly greater than ``HOLDOUT_BOUNDARY``.
+    """
+    boundary_ts = pd.Timestamp(HOLDOUT_BOUNDARY)
+    for candidate in candidates:
+        if candidate is None:
+            continue
+
+        if isinstance(candidate, (pd.DatetimeIndex, pd.Series)):
+            if len(candidate) == 0:
+                continue
+            stamps = pd.to_datetime(candidate, errors="coerce").dropna()
+            if len(stamps) == 0:
+                continue
+            max_ts = stamps.max()
+        else:
+            max_ts = pd.Timestamp(candidate)
+
+        if pd.isna(max_ts):
+            continue
+
+        if max_ts > boundary_ts:
+            offending = max_ts.date().isoformat()
+            raise HoldoutLeakageError(
+                f"{source}: refuses to process date {offending}; holdout boundary "
+                f"is {HOLDOUT_BOUNDARY.isoformat()} (iron rule 1)."
+            )
+
 
 # ── Diagnostics (returned by ALL nyse_core public functions) ──────────────────
 

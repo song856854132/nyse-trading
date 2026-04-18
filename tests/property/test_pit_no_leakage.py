@@ -19,7 +19,7 @@ from hypothesis import strategies as st
 
 from nyse_core.pit import enforce_pit_lags
 
-_DATE_STRATEGY = st.dates(min_value=date(2018, 1, 1), max_value=date(2025, 12, 31))
+_DATE_STRATEGY = st.dates(min_value=date(2018, 1, 1), max_value=date(2023, 12, 31))
 
 
 # ── Invariant 1: No future data survives ────────────────────────────────────

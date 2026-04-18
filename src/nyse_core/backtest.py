@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from nyse_core.contracts import BacktestResult, Diagnostics
+from nyse_core.contracts import BacktestResult, Diagnostics, reject_holdout_dates
 from nyse_core.metrics import (
     cagr,
     cost_drag,
@@ -69,6 +69,9 @@ def run_walk_forward_backtest(
     dates = feature_matrix.index
     if not isinstance(dates, pd.DatetimeIndex):
         dates = pd.DatetimeIndex(dates)
+
+    # Iron rule 1: walk-forward backtest must never touch holdout-era observations.
+    reject_holdout_dates(dates, source=src)
 
     all_oos_returns: list[pd.Series] = []
     all_oos_costs: list[pd.Series] = []

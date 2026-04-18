@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from nyse_core.contracts import Diagnostics
+from nyse_core.contracts import Diagnostics, reject_holdout_dates
 from nyse_core.schema import (
     MAX_PARAMS_WARNING,
     MIN_TRAIN_YEARS,
@@ -91,6 +91,9 @@ class PurgedWalkForwardCV:
         tuple[np.ndarray, np.ndarray]
             Integer index arrays for (train, test) observations.
         """
+        # Iron rule 1: CV splitter may not see any holdout-era observation.
+        reject_holdout_dates(dates, source="cv.PurgedWalkForwardCV.split")
+
         n = len(dates)
         gap = self.purge_days + self.embargo_days
 

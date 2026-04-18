@@ -49,7 +49,7 @@ def _make_market_data(n_symbols: int = 10, nan_frac: float = 0.0) -> pd.DataFram
     """Generate a DataFrame with date + numeric feature columns."""
     symbols = [f"SYM{i}" for i in range(n_symbols)]
     data = {
-        COL_DATE: [date(2024, 6, 1)] * n_symbols,
+        COL_DATE: [date(2022, 6, 1)] * n_symbols,
         "symbol": symbols,
         "momentum_20d": np.random.default_rng(42).random(n_symbols),
         "value_score": np.random.default_rng(43).random(n_symbols),
@@ -157,7 +157,7 @@ class TestKillSwitch:
             storage=_mock_storage(),
             factor_registry=_mock_registry(),
         )
-        result, diag = pipeline.run_rebalance(date(2024, 6, 1))
+        result, diag = pipeline.run_rebalance(date(2022, 6, 1))
 
         assert isinstance(result, PortfolioBuildResult)
         assert result.trade_plans == []
@@ -178,7 +178,7 @@ class TestDailyLossHalt:
             factor_registry=_mock_registry(),
         )
         pipeline._last_daily_return = -0.04  # -4%, below -3% limit
-        result, diag = pipeline.run_rebalance(date(2024, 6, 1))
+        result, diag = pipeline.run_rebalance(date(2022, 6, 1))
 
         assert result.trade_plans == []
         assert result.skipped_reason == "daily_loss_halt"
@@ -194,7 +194,7 @@ class TestDailyLossHalt:
         )
         # _last_daily_return not set — should not halt
         result, diag = pipeline.run_rebalance(
-            date(2024, 6, 1),
+            date(2022, 6, 1),
             market_data=_make_features(nan_frac=0.0),
         )
         assert result.skipped_reason != "daily_loss_halt"
@@ -282,7 +282,7 @@ class TestHappyPathRebalance:
 
         # Mock impute: add date column
         imputed = features.copy()
-        imputed[COL_DATE] = date(2024, 6, 1)
+        imputed[COL_DATE] = date(2022, 6, 1)
         mock_impute.return_value = (imputed, Diagnostics())
 
         # Mock model
@@ -300,7 +300,7 @@ class TestHappyPathRebalance:
             cost_estimate_usd=10.0,
             turnover_pct=0.05,
             regime_state=RegimeState.BULL,
-            rebalance_date=date(2024, 6, 1),
+            rebalance_date=date(2022, 6, 1),
             held_positions=5,
             new_entries=5,
             exits=0,
@@ -315,12 +315,12 @@ class TestHappyPathRebalance:
         )
 
         result, diag = pipeline.run_rebalance(
-            date(2024, 6, 1),
+            date(2022, 6, 1),
             market_data=market_data,
         )
 
         assert isinstance(result, PortfolioBuildResult)
-        assert result.rebalance_date == date(2024, 6, 1)
+        assert result.rebalance_date == date(2022, 6, 1)
         assert not diag.has_errors
 
     @patch("nyse_ats.pipeline.build_portfolio")
@@ -342,7 +342,7 @@ class TestHappyPathRebalance:
         mock_pit.return_value = (market_data, Diagnostics())
 
         imputed = features.copy()
-        imputed[COL_DATE] = date(2024, 6, 1)
+        imputed[COL_DATE] = date(2022, 6, 1)
         mock_impute.return_value = (imputed, Diagnostics())
 
         # Track call order
@@ -363,7 +363,7 @@ class TestHappyPathRebalance:
             cost_estimate_usd=0.0,
             turnover_pct=0.0,
             regime_state=RegimeState.BULL,
-            rebalance_date=date(2024, 6, 1),
+            rebalance_date=date(2022, 6, 1),
             held_positions=0,
             new_entries=0,
             exits=0,
@@ -376,7 +376,7 @@ class TestHappyPathRebalance:
             storage=_mock_storage(),
             factor_registry=registry,
         )
-        pipeline.run_rebalance(date(2024, 6, 1), market_data=market_data)
+        pipeline.run_rebalance(date(2022, 6, 1), market_data=market_data)
 
         assert "fit" in call_order, "model.fit() was never called"
         assert "predict" in call_order, "model.predict() was never called"
@@ -411,7 +411,7 @@ class TestNilPath:
         )
 
         result, diag = pipeline.run_rebalance(
-            date(2024, 6, 1),
+            date(2022, 6, 1),
             market_data=market_data,
         )
 
@@ -446,7 +446,7 @@ class TestEmptyPath:
         )
 
         result, diag = pipeline.run_rebalance(
-            date(2024, 6, 1),
+            date(2022, 6, 1),
             market_data=market_data,
         )
 
@@ -483,7 +483,7 @@ class TestErrorPath:
         )
 
         result, diag = pipeline.run_rebalance(
-            date(2024, 6, 1),
+            date(2022, 6, 1),
             market_data=market_data,
         )
 
@@ -505,7 +505,7 @@ class TestBacktest:
         )
         result, diag = pipeline.run_backtest(
             start_date=date(2020, 1, 1),
-            end_date=date(2024, 1, 1),
+            end_date=date(2022, 1, 1),
         )
         assert isinstance(result, BacktestResult)
         assert result.oos_sharpe == 0.0
@@ -528,7 +528,7 @@ class TestAdapterFallback:
             factor_registry=_mock_registry(),
         )
 
-        result, diag = pipeline.run_rebalance(date(2024, 6, 1))
+        result, diag = pipeline.run_rebalance(date(2022, 6, 1))
 
         assert result.skipped_reason == "data_load_error"
         assert diag.has_errors
@@ -539,11 +539,11 @@ class TestAdapterFallback:
 
 class TestEmptyResult:
     def test_empty_result_has_correct_fields(self) -> None:
-        r = _empty_result(date(2024, 6, 1), "test_reason")
+        r = _empty_result(date(2022, 6, 1), "test_reason")
         assert isinstance(r, PortfolioBuildResult)
         assert r.trade_plans == []
         assert r.skipped_reason == "test_reason"
-        assert r.rebalance_date == date(2024, 6, 1)
+        assert r.rebalance_date == date(2022, 6, 1)
         assert r.turnover_pct == 0.0
 
 
@@ -612,7 +612,7 @@ class TestLoadAllData:
         )
 
         diag = Diagnostics()
-        result = pipeline._load_all_data(date(2024, 6, 1), diag)
+        result = pipeline._load_all_data(date(2022, 6, 1), diag)
 
         assert "ohlcv" in result
         assert "fundamentals" in result
@@ -632,7 +632,7 @@ class TestLoadAllData:
         )
 
         diag = Diagnostics()
-        result = pipeline._load_all_data(date(2024, 6, 1), diag)
+        result = pipeline._load_all_data(date(2022, 6, 1), diag)
 
         assert "ohlcv" in result
         assert "broken" not in result
@@ -662,7 +662,7 @@ class TestPriceExtraction:
         # Market data with known close prices per symbol
         market_data = pd.DataFrame(
             {
-                COL_DATE: [date(2024, 6, 1)] * 3,
+                COL_DATE: [date(2022, 6, 1)] * 3,
                 COL_SYMBOL: ["AAPL", "MSFT", "GOOG"],
                 COL_CLOSE: [180.0, 420.0, 175.0],
                 "momentum_20d": [0.5, 0.6, 0.7],
@@ -675,7 +675,7 @@ class TestPriceExtraction:
         mock_pit.return_value = (market_data, Diagnostics())
 
         imputed = features.copy()
-        imputed[COL_DATE] = date(2024, 6, 1)
+        imputed[COL_DATE] = date(2022, 6, 1)
         mock_impute.return_value = (imputed, Diagnostics())
 
         mock_model = MagicMock()
@@ -688,7 +688,7 @@ class TestPriceExtraction:
             cost_estimate_usd=0.0,
             turnover_pct=0.0,
             regime_state=RegimeState.BULL,
-            rebalance_date=date(2024, 6, 1),
+            rebalance_date=date(2022, 6, 1),
             held_positions=0,
             new_entries=0,
             exits=0,
@@ -701,7 +701,7 @@ class TestPriceExtraction:
             storage=_mock_storage(),
             factor_registry=registry,
         )
-        pipeline.run_rebalance(date(2024, 6, 1), market_data=market_data)
+        pipeline.run_rebalance(date(2022, 6, 1), market_data=market_data)
 
         # Verify build_portfolio received prices
         call_kwargs = mock_build.call_args
@@ -738,7 +738,7 @@ class TestProvenanceFlow:
         mock_pit.return_value = (market_data, Diagnostics())
 
         imputed = features.copy()
-        imputed[COL_DATE] = date(2024, 6, 1)
+        imputed[COL_DATE] = date(2022, 6, 1)
         mock_impute.return_value = (imputed, Diagnostics())
 
         mock_model = MagicMock()
@@ -754,7 +754,7 @@ class TestProvenanceFlow:
             cost_estimate_usd=0.0,
             turnover_pct=0.0,
             regime_state=RegimeState.BULL,
-            rebalance_date=date(2024, 6, 1),
+            rebalance_date=date(2022, 6, 1),
             held_positions=0,
             new_entries=0,
             exits=0,
@@ -767,7 +767,7 @@ class TestProvenanceFlow:
             storage=_mock_storage(),
             factor_registry=registry,
         )
-        pipeline.run_rebalance(date(2024, 6, 1), market_data=market_data)
+        pipeline.run_rebalance(date(2022, 6, 1), market_data=market_data)
 
         call_kwargs = mock_build.call_args
         config_arg = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
@@ -778,7 +778,7 @@ class TestProvenanceFlow:
         prov = config_arg["provenance"]
         assert prov["model_type"] == "ridge"
         assert prov["data_path"] == "HAPPY"
-        assert prov["rebalance_date"] == "2024-06-01"
+        assert prov["rebalance_date"] == "2022-06-01"
         assert "n_features" in prov
         assert "n_stocks_scored" in prov
 
@@ -804,12 +804,12 @@ class TestBacktestPivotedReturns:
         ohlcv = pd.DataFrame(
             {
                 COL_DATE: [
-                    date(2024, 1, 1),
-                    date(2024, 1, 1),
-                    date(2024, 1, 2),
-                    date(2024, 1, 2),
-                    date(2024, 1, 3),
-                    date(2024, 1, 3),
+                    date(2022, 1, 1),
+                    date(2022, 1, 1),
+                    date(2022, 1, 2),
+                    date(2022, 1, 2),
+                    date(2022, 1, 3),
+                    date(2022, 1, 3),
                 ],
                 COL_SYMBOL: ["AAPL", "MSFT", "AAPL", "MSFT", "AAPL", "MSFT"],
                 COL_CLOSE: [150.0, 400.0, 153.0, 404.0, 155.0, 408.0],
@@ -826,8 +826,8 @@ class TestBacktestPivotedReturns:
 
         diag = Diagnostics()
         feat, returns = pipeline._load_backtest_data(
-            date(2024, 1, 1),
-            date(2024, 1, 3),
+            date(2022, 1, 1),
+            date(2022, 1, 3),
             diag,
         )
 

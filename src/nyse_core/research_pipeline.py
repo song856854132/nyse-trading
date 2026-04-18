@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 
 from nyse_core.allocator import equal_weight, select_top_n
-from nyse_core.contracts import BacktestResult, CompositeScore, Diagnostics
+from nyse_core.contracts import (
+    BacktestResult,
+    CompositeScore,
+    Diagnostics,
+    reject_holdout_dates,
+)
 from nyse_core.cost_model import estimate_cost_bps
 from nyse_core.impute import cross_sectional_impute
 from nyse_core.metrics import cagr, max_drawdown, sharpe_ratio
@@ -68,6 +73,13 @@ class ResearchPipeline:
         """Compute, normalize, impute features. Returns (symbols x factors) in [0,1]."""
         diag = Diagnostics()
         src = f"{_SRC}.compute_feature_matrix"
+
+        # Iron rule 1: refuse holdout-era feature computation up front.
+        reject_holdout_dates(rebalance_date, source=src)
+        if COL_DATE in ohlcv.columns:
+            reject_holdout_dates(pd.to_datetime(ohlcv[COL_DATE]), source=src)
+        if fundamentals is not None and COL_DATE in fundamentals.columns:
+            reject_holdout_dates(pd.to_datetime(fundamentals[COL_DATE]), source=src)
 
         if rebalance_date is None:
             # Use the latest date in ohlcv
@@ -201,6 +213,12 @@ class ResearchPipeline:
         """
         diag = Diagnostics()
         src = f"{_SRC}.run_walk_forward_validation"
+
+        # Iron rule 1: walk-forward must not see any holdout-era bar.
+        if COL_DATE in ohlcv.columns:
+            reject_holdout_dates(pd.to_datetime(ohlcv[COL_DATE]), source=src)
+        if fundamentals is not None and COL_DATE in fundamentals.columns:
+            reject_holdout_dates(pd.to_datetime(fundamentals[COL_DATE]), source=src)
 
         dates_raw = sorted(ohlcv[COL_DATE].unique())
         dates_arr = pd.DatetimeIndex(pd.to_datetime(dates_raw))
