@@ -15,7 +15,8 @@
 **How to apply:** Create a logging config module. Log levels: DEBUG (API responses), INFO (rebalance events), WARNING (data gaps), ERROR (failures). All log entries include `rebalance_date` + `run_id` for traceability across a single pipeline run.
 **Depends on:** Nothing. Phase 0 deliverable.
 
-### TODO-5: Dependency Pinning Strategy
+### TODO-5: Dependency Pinning Strategy — **CLOSED 2026-04-18**
+**Evidence:** `uv.lock:1-4504` (189 packages resolved against `requires-python >= 3.11`, covers both 3.11 and 3.12 resolution markers). `.github/workflows/ci.yml:37-40` runs `uv lock --check` on every matrix cell so `pyproject.toml` drift without relocking fails CI. `docs/REPRODUCIBILITY.md:15-64` documents `uv sync --extra dev --extra research` as the reproducibility-grade install path plus `uv lock --check` verification.
 **What:** Choose uv or poetry with a lockfile. Pin major versions in pyproject.toml, exact versions in lockfile.
 **Why:** 40-week project with ~15 dependencies. NautilusTrader has breaking API changes between minor versions. Without pinning, a `pip install` 6 months from now could break the entire system.
 **How to apply:** Decide tool (uv recommended — fastest, lockfile built-in). Add `uv.lock` or `poetry.lock` to repo. CI tests against pinned versions.
