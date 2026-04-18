@@ -192,7 +192,8 @@
 **How to apply:** Wait until `live.duckdb` schema is finalized by nautilus_bridge reconciliation (Phase 2-3). Add `--mode live` path to the generator. Emit per-position rows with calibration HIT/MISS based on sign agreement.
 **Depends on:** `nautilus_bridge.py` reconciliation (Phase 2), paper trading start (Phase 5).
 
-### TODO-26: Pre-commit Hook for Research Log Verification
+### TODO-26: Pre-commit Hook for Research Log Verification — **CLOSED 2026-04-18**
+**Evidence:** `.pre-commit-config.yaml:57-62` (`research-log-chain` hook invokes `scripts/verify_research_log.py` on any commit touching `results/research_log.jsonl`; non-zero exit aborts the commit). Caught a real chain break on line 23 on first run, see TODO-33.
 **What:** Add `scripts/verify_research_log.py` to `.pre-commit-config.yaml` so any commit that silently clobbers the research log chain fails locally.
 **Why:** The hash chain is only enforceable if verification runs automatically. Without a hook, the only check happens when a human remembers to run verify — which will not happen reliably under time pressure.
 **How to apply:** Add a local-repo hook entry calling `python3 scripts/verify_research_log.py`. Non-zero exit aborts the commit. Also add to CI pipeline (TODO-6) as a required check.
@@ -218,11 +219,18 @@
 
 ## Residue from TODO-6 (2026-04-18)
 
-### TODO-30: Pre-commit Hook Framework
+### TODO-30: Pre-commit Hook Framework — **CLOSED 2026-04-18**
+**Evidence:** `.pre-commit-config.yaml:1-63` (gitleaks v8.21.2 + local ruff-check, ruff-format-check, mypy, holdout-path-guard, research-log-chain hooks — all six green on `pre-commit run --all-files` post-repair). `scripts/check_holdout_guard.py:1-60` implements iron-rule-1 guard. `pyproject.toml:46` adds `pre-commit>=3.5` to `[project.optional-dependencies].dev`. `docs/REPRODUCIBILITY.md:1-52` documents `pre-commit install` + hook table + never-skip-hooks warning. Research log chain-repair story captured at line 24 (hash `84d1d078953c9003...`).
 **What:** Install `pre-commit` framework with `.pre-commit-config.yaml` running ruff, ruff-format, mypy, gitleaks, and a holdout-path guard hook.
 **Why:** CI catches regressions at PR time, but local pre-commit catches them before push, halving round-trip latency. The original TODO-6 scope listed this as part of the Phase 1 deliverable; it was descoped to keep this iteration focused on the remote-side workflow. The iron rule "never skip pre-commit" depends on an installed hook — currently moot because no hook exists.
 **How to apply:** Add `pre-commit>=3.5` to `[project.optional-dependencies].dev`. Create `.pre-commit-config.yaml` with stages for ruff check, ruff format, mypy (mirror `[tool.mypy]`), gitleaks, and a custom hook invoking a holdout-path guard script (rejects commits whose diff touches dated literals > 2023-12-31 outside `tests/holdout/` or `results/holdout/`). Document `pre-commit install` in `docs/REPRODUCIBILITY.md`.
 **Depends on:** TODO-6 (done). Unblocks enforcement of iron rule "no `--no-verify`".
+
+### TODO-33: Mandate `scripts/append_research_log.py` as the Only Append Path
+**What:** Enforce that `results/research_log.jsonl` can only be modified via `scripts/append_research_log.py`. Add a CI/pre-commit check that refuses any diff where the last line's `hash` field was not computed via the canonical helper.
+**Why:** The iter-4 chain-repair incident (line 23, stored `0cb51de6...` vs canonical `15aae18d...`) was caused by iter-2 hand-writing the JSON rather than going through the helper. The hand-written form used a non-canonical key ordering, so the stored hash was unverifiable. The pre-commit hook installed in TODO-26 catches the break after the fact, but does not prevent the mistake. A positive check — "this diff was produced by the helper" — would prevent recurrence.
+**How to apply:** Simplest version: add a CI-only `scripts/check_appender_used.py` that, for every new line added to `results/research_log.jsonl` in the diff, recomputes the canonical hash from `prev_hash` and the parsed `entry` and compares against the stored `hash`. Mismatch → fail. This is effectively a stronger form of the existing verifier: it not only verifies the chain but also that each hash was produced by the canonical serialization. Wire into `.github/workflows/ci.yml` + `.pre-commit-config.yaml`. Alternatively, convert `append_research_log.py` into a write-gated helper and mark the log file read-only via a git attribute + server-side check (heavier).
+**Depends on:** TODO-26 (done). Cosmetic until the next person tries to hand-write an entry.
 
 ### TODO-31: Restore mypy strict mode
 **What:** Re-enable `strict = true` / `disallow_untyped_defs = true` in `[tool.mypy]` and work through the ~45 residual errors (mostly `dict`/`ndarray`/`Callable` missing type args and `object`-typed lazy imports for torch/lightgbm).
