@@ -92,6 +92,30 @@ academic literature + TWSE priors to this window. They don't. This is calibratio
 not evidence of a bug. n=7 is not yet enough for a quantitative calibration curve; target
 n ≥ 10 resolved predictions before fitting a forecaster-skill regression.
 
+### Why two Brier numbers exist (methodology note)
+
+Readers comparing this tracker's **1.00** against `CALIBRATION_TRACKER.md`'s **0.61** will
+notice the gap. Both are correct — they answer different questions:
+
+| Scoring rule | Where | Forecast encoding | Outcome encoding | Value |
+|---|---|---|---|---|
+| **Pure 0/1 (hard verdict)** | This file, auto-generated | forecast_i = 1 (any non-PENDING prediction is treated as "PASS asserted") | outcome_i ∈ {0, 1} | **1.00** |
+| **Probability-bucketed (soft verdict)** | `CALIBRATION_TRACKER.md` | forecast_prob_i ∈ {0.25, 0.5, 0.65, 0.75} from `forecast_value` wording | outcome_i ∈ {0, 1} | **0.61** |
+
+The pure-0/1 view answers *"of the predictions the forecaster committed to, how many
+landed?"* — it is the strongest form of accountability and is what a lay reviewer
+(e.g., LP DDQ row "did your last N factor calls pass?") expects. The probability-bucketed
+view answers *"given the hedge words the forecaster actually used (`PASS likely`,
+`PASS plausible`, `UNCERTAIN`), is the forecaster better than a maximum-entropy prior?"*
+— it is the proper scoring rule for calibration-curve construction at n ≥ 10.
+
+Both are preserved. Auto-regeneration overwrites the 1.00 figure only. The 0.61 figure is
+hand-maintained in `CALIBRATION_TRACKER.md` and is the canonical input to
+`ABANDONMENT_CRITERIA.md` A10 (which triggers at Brier ≥ 0.55 at n ≥ 10 under the
+probability-bucketed rule, because that is the rule the researcher's priors were
+originally stated in). Do **not** substitute one for the other in governance decisions —
+the threshold is rule-specific.
+
 ---
 
 ## Notes on MISS: factor-ivol_20d-2016_2023 (2026-04-17)

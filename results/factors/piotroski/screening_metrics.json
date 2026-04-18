@@ -1,0 +1,16 @@
+{
+  "factor_name": "piotroski",
+  "metrics": {
+    "oos_sharpe": 0.03853480955626958,
+    "permutation_p": 0.001996007984031936,
+    "ic_mean": 0.00899319098058753,
+    "ic_ir": 0.08923960949444396,
+    "max_drawdown": -0.2161619309899081,
+    "marginal_contribution": 1.0
+  },
+  "n_rebalance_dates": 418,
+  "n_score_rows": 193537,
+  "n_fwd_return_rows": 198477,
+  "start_date": "2016-01-01",
+  "end_date": "2023-12-31"
+}

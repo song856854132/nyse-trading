@@ -1,0 +1,20 @@
+{
+  "factor_name": "accruals",
+  "gate_results": {
+    "G0": true,
+    "G1": true,
+    "G2": false,
+    "G3": false,
+    "G4": true,
+    "G5": true
+  },
+  "gate_metrics": {
+    "G0_value": 0.5765187902944724,
+    "G1_value": 0.001996007984031936,
+    "G2_value": 0.007973294237617888,
+    "G3_value": 0.06226939951510049,
+    "G4_value": -0.2723277469785699,
+    "G5_value": 1.0
+  },
+  "passed_all": false
+}

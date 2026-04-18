@@ -1,0 +1,56 @@
+{
+  "investigation": "ivol_20d_regime_stratified_ic",
+  "run_date": "2026-04-18",
+  "period": "2016-01-01_2023-12-31",
+  "total_weeks": 412,
+  "overall_ic_mean": -0.007910927524391554,
+  "pre2020_ic_mean": -0.007114668214163663,
+  "post2020_ic_mean": -0.008699493507950582,
+  "bull_ic_mean": -0.0009754446310372148,
+  "bear_ic_mean": -0.03415124589579706,
+  "bull_ic_n": 296,
+  "bear_ic_n": 104,
+  "by_year": {
+    "2016": {
+      "n": 49,
+      "ic_mean": -0.02298110333683065,
+      "pct_positive": 0.4489795918367347
+    },
+    "2017": {
+      "n": 52,
+      "ic_mean": -0.004405931766588122,
+      "pct_positive": 0.4230769230769231
+    },
+    "2018": {
+      "n": 52,
+      "ic_mean": -0.0026479267946999236,
+      "pct_positive": 0.5192307692307693
+    },
+    "2019": {
+      "n": 52,
+      "ic_mean": 0.0006609177843870992,
+      "pct_positive": 0.5384615384615384
+    },
+    "2020": {
+      "n": 52,
+      "ic_mean": 0.01287004528115518,
+      "pct_positive": 0.6153846153846154
+    },
+    "2021": {
+      "n": 53,
+      "ic_mean": 0.002992275531579743,
+      "pct_positive": 0.5283018867924528
+    },
+    "2022": {
+      "n": 52,
+      "ic_mean": -0.02294998099380446,
+      "pct_positive": 0.4807692307692308
+    },
+    "2023": {
+      "n": 50,
+      "ic_mean": -0.028704582045234687,
+      "pct_positive": 0.44
+    }
+  },
+  "note": "EVIDENCE ONLY. No new factor created. Any regime-conditional factor must be pre-registered separately (TODO-23) and re-screened."
+}

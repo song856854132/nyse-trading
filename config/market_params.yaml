@@ -1,0 +1,10 @@
+market: NYSE
+currency: USD
+lot_size: 1                        # Derived: always 1 for US equities (no LOT_SIZE bug)
+transaction_tax_rate: 0.0          # Derived: no securities transaction tax on NYSE
+commission_per_share: 0.005        # Derived: IB default rate
+base_spread_bps: 10.0             # Derived: base spread for high-ADV stocks (>$50M daily)
+monday_multiplier: 1.3            # Derived: higher spread on Monday post-weekend
+earnings_week_multiplier: 1.5     # Derived: higher spread during earnings season
+trading_days_per_year: 252
+settlement_days: 2                 # T+2

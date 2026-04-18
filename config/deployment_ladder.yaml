@@ -1,0 +1,43 @@
+# Deployment ladder — each stage must pass ALL gates before advancing.
+
+stages:
+  paper:
+    capital: 1000000  # Simulated $1M
+    min_duration_days: 90
+    entry_gate: "synthetic_calibration_passed AND permutation_p < 0.05"
+    exit_criteria:
+      ic_in_range: true
+      no_veto_trigger: true
+
+  shadow:
+    capital: 0  # Real prices, no orders
+    min_duration_days: 30
+    entry_gate: "paper_gates_passed"
+    exit_criteria:
+      fills_match_real_within_bps: 10
+
+  minimum_live:
+    capital: 100000
+    min_duration_days: 90
+    entry_gate: "shadow_gates_passed"
+    exit_criteria:
+      realized_sharpe_gt: 0.0
+      fill_rate_gt: 0.95
+
+  scale:
+    capital_range: [500000, 2000000]
+    min_duration_days: 180
+    entry_gate: "min_live_gates_passed"
+    exit_criteria:
+      slippage_lt_bps: 15
+      adv_impact_lt_pct: 1.0
+
+# Shadow-to-Live Graduation (ALL 7 must pass)
+graduation_criteria:
+  min_trading_days: 20
+  mean_slippage_bps_lt: 20
+  rejection_rate_lt: 0.05
+  settlement_failures_eq: 0
+  fill_rate_gt: 0.95
+  rolling_ic_20d_gt: 0.02
+  cost_drag_pct_lt: 5.0

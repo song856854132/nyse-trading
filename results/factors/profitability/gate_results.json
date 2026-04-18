@@ -1,0 +1,20 @@
+{
+  "factor_name": "profitability",
+  "gate_results": {
+    "G0": true,
+    "G1": true,
+    "G2": false,
+    "G3": false,
+    "G4": true,
+    "G5": true
+  },
+  "gate_metrics": {
+    "G0_value": 1.1477384452572872,
+    "G1_value": 0.001996007984031936,
+    "G2_value": 0.015791814521801104,
+    "G3_value": 0.11297312291256795,
+    "G4_value": -0.18994208087012976,
+    "G5_value": 1.0
+  },
+  "passed_all": false
+}

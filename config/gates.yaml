@@ -1,0 +1,42 @@
+# G0-G5 Factor Validation Gates
+# All factors must pass ALL gates before inclusion in the ensemble.
+# Evaluated on RESEARCH period (2016-2023) ONLY. Holdout (2024-2025) is untouched.
+#
+# These gates are aligned with factor_screening.screen_factor() which computes
+# each metric from long-short quintile returns, IC series, and ensemble IC delta.
+
+G0:
+  metric: "oos_sharpe"
+  threshold: 0.3
+  direction: ">="
+  description: "Long-short quintile OOS Sharpe >= 0.3"
+
+G1:
+  metric: "permutation_p"
+  threshold: 0.05
+  direction: "<"
+  description: "Block-bootstrap permutation p-value < 0.05"
+
+G2:
+  metric: "ic_mean"
+  threshold: 0.02
+  direction: ">="
+  description: "Mean cross-sectional Spearman IC >= 0.02"
+
+G3:
+  metric: "ic_ir"
+  threshold: 0.5
+  direction: ">="
+  description: "IC Information Ratio (IC mean / IC std) >= 0.5"
+
+G4:
+  metric: "max_drawdown"
+  threshold: -0.30
+  direction: ">="
+  description: "Long-short portfolio max drawdown no worse than -30%"
+
+G5:
+  metric: "marginal_contribution"
+  threshold: 0.0
+  direction: ">"
+  description: "Positive ensemble IC delta when adding factor to existing set"

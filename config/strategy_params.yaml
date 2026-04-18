@@ -1,0 +1,46 @@
+universe:
+  source: "SP500"
+  min_price: 5.0                   # Derived: penny stock filter
+  min_adv_20d: 500000              # Derived: liquidity floor
+
+rebalance:
+  frequency: "weekly"              # Derived: NYSE 15-20 bps costs enable weekly (TWSE was monthly)
+  day_of_week: "Friday"
+  execution_delay_days: 1          # Derived: T+1 execution shift (Lesson_Learn PiT rule)
+
+allocator:
+  top_n: 20                        # Derived: wider than TWSE 15 due to larger NYSE universe
+  weighting: "equal"               # Derived: Lesson_Learn -- alpha surface too flat for signal-weighting
+  sell_buffer: 1.5                 # Derived: Lesson_Learn Phase 63 -- +0.040 Sharpe, ~1644 bps saved
+
+regime:
+  type: "sma200_binary"            # Derived: Lesson_Learn -- binary gate beats continuous vol-scaling
+  benchmark: "SPY"
+  bull_exposure: 1.0
+  bear_exposure: 0.4               # Derived: Lesson_Learn Phase 41
+
+combination:
+  model: "ridge"                   # Derived: Lesson_Learn -- Ridge >> LightGBM (6.9x overfit ratio)
+  alpha: 1.0                       # Ridge regularization strength
+  normalization: "rank_percentile" # Derived: Lesson_Learn Phase 44 -- +0.109 Sharpe over z-score
+  target_horizon_days: 5           # Primary: 5-day post-execution returns
+
+risk:
+  max_position_pct: 0.10           # Derived: prevent ivol-sizing catastrophe (TWSE: 30% concentration)
+  max_sector_pct: 0.30             # Derived: prevent GICS concentration from factor biases
+  position_inertia_threshold: 0.005 # Derived: Carver 10% relative deviation. 20-stock EW = 5% target → 0.5pp absolute
+  beta_cap_low: 0.5
+  beta_cap_high: 1.5
+  daily_loss_limit: -0.03          # Halt if portfolio drops -3% intraday
+  earnings_event_cap: 0.05         # No position >5% if reporting within 2 days
+  earnings_event_days: 2
+
+kill_switch: false                 # Manual halt flag -- checked before every order submission
+
+volatility_target:
+  annual_pct: 0.15                 # Derived: half-Kelly of ~0.30 expected SR
+
+execution:
+  algorithm: "twap"                # NautilusTrader TWAP for weekly rebalance
+  twap_duration_minutes: 30        # Spread orders over 30 minutes
+  max_participation_rate: 0.05     # Never exceed 5% of ADV per order

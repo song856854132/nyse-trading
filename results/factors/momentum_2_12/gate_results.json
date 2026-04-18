@@ -1,0 +1,20 @@
+{
+  "factor_name": "momentum_2_12",
+  "gate_results": {
+    "G0": true,
+    "G1": true,
+    "G2": false,
+    "G3": false,
+    "G4": true,
+    "G5": true
+  },
+  "gate_metrics": {
+    "G0_value": 0.5164192013622269,
+    "G1_value": 0.001996007984031936,
+    "G2_value": 0.018886523293034075,
+    "G3_value": 0.07768792142216094,
+    "G4_value": -0.2827050762010974,
+    "G5_value": 1.0
+  },
+  "passed_all": false
+}

@@ -2,7 +2,7 @@
 
 **Current System Reference | v0.6 | April 2026**
 
-> **Status (2026-04-18):** Research pipeline complete through Phase 4 | 998 tests passing | **Factor admission on real 2016-2023 S&P 500 data: 0 of 6 Tier-1 / Tier-2 factors pass G0-G5** (ivol_20d, high_52w, momentum_2_12, piotroski, accruals, profitability all FAIL — see `OUTCOME_VS_FORECAST.md` §Live Forecasts) | Ensemble unbuildable until at least one factor is admitted | Pre-registered abandonment criteria A1-A12 now frozen (`docs/ABANDONMENT_CRITERIA.md`) — A1 is 4 factors away from firing | Calibration Brier score 0.61 at n=7 (`docs/CALIBRATION_TRACKER.md`) | Holdout (2024-2025) intact; lockfile absent | Phase 5 paper trading **NOT imminent** — blocked on ≥3 admitted factors or abandonment-criteria decision | Next: Tier-3 factor screens (options flow, analyst revisions, NLP) + regime-conditional variants + 20-day horizon re-screens
+> **Status (2026-04-18):** Research pipeline complete through Phase 4 | 998 tests passing | **Factor admission on real 2016-2023 S&P 500 data: 0 of 6 Tier-1 / Tier-2 factors pass G0-G5** (ivol_20d, high_52w, momentum_2_12, piotroski, accruals, profitability all FAIL — see `OUTCOME_VS_FORECAST.md` §Live Forecasts) | Ensemble unbuildable until at least one factor is admitted | Pre-registered abandonment criteria A1-A12 now frozen (`docs/ABANDONMENT_CRITERIA.md`) — A1 is 4 factors away from firing | Calibration Brier score 0.61 at n=7 (probability-bucketed; `docs/CALIBRATION_TRACKER.md`) / 1.00 at n=7 (hard 0/1; `docs/OUTCOME_VS_FORECAST.md` §Calibration) — methodology note reconciles both views | Holdout (2024-2025) intact; lockfile absent | **AI/ML governance policy published** (`docs/AI_GOVERNANCE.md`: CO AI Act + TX HB 149 + SR 11-7 + SEC Reg BI + EU AI Act; autonomy ladder A0-A4; retraining approval gate) | Phase 5 paper trading **NOT imminent** — blocked on ≥3 admitted factors or abandonment-criteria decision | Next: Tier-3 factor screens (options flow, analyst revisions, NLP) + regime-conditional variants + 20-day horizon re-screens
 
 This document describes the system as it exists today -- modules, data flow, configuration, and risk management. It is the single source of truth for how the NYSE ATS framework operates.
 
@@ -16,6 +16,12 @@ This document describes the system as it exists today -- modules, data flow, con
 - [ABANDONMENT_CRITERIA.md](ABANDONMENT_CRITERIA.md) -- Pre-registered pre-live stop thresholds (A1-A12)
 - [MODEL_VALIDATION.md](MODEL_VALIDATION.md) -- SR 11-7-style validation report (draft)
 - [INDEPENDENT_VALIDATION_DRAFT.md](INDEPENDENT_VALIDATION_DRAFT.md) -- Independent-voice validation scaffolding
+- [AI_GOVERNANCE.md](AI_GOVERNANCE.md) -- AI/ML governance policy (CO AI Act, TX HB 149, SR 11-7, SEC Reg BI, EU AI Act; autonomy ladder, retraining approval, incident response)
+- [MLOPS_LIFECYCLE.md](MLOPS_LIFECYCLE.md) -- Model lifecycle: training, registry, deployment, drift, retraining
+- [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) -- Incident response runbooks and RPO/RTO targets
+- [AUDIT_TRAIL.md](AUDIT_TRAIL.md) -- Hash-chained research log + decision ledger
+- [SEC_FINRA_COMPLIANCE.md](SEC_FINRA_COMPLIANCE.md) -- Rule 15c3-5, Rule 606, FINRA 2090/2111 mapping
+- [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md) -- Pre-deployment review checklist
 - [Plan](/.claude/plans/dreamy-riding-quasar.md) -- Full architectural plan with phase breakdown
 
 ---

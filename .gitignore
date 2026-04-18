@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE / session state
+.vscode/
+.idea/
+.claude/
+.context/
+
+# Runtime
+logs/
+*.log
+
+# Data artifacts (must stay out of git per iron rules)
+research.duckdb
+live.duckdb
+holdout.duckdb
+
+# Holdout guard (iron rule: never touch data after 2023-12-31)
+results/holdout/
+
+# Backtest per-run artifacts (large, regenerable)
+results/backtests/
+
+# Historical repair backups
+results/*.pre-repair-*
+
+# Credentials
+.env
+.env.*
+*.key
+*.pem
+credentials*

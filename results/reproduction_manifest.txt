@@ -1,0 +1,69 @@
+REPRODUCTION MANIFEST — 2026-04-18T02:14:24+00:00
+==============================================================================
+
+This manifest pairs every reported metric with the artifact it was read
+from, so a reviewer can verify every number in the research record.
+
+1. ENVIRONMENT
+------------------------------------------------------------------------------
+  git commit:  ad9ab143ccb63e3c39cd56eccd86303bc7eb4047
+  chain tip:   9cad7b5735ce87c8a1db1155cd76946d0a4bf4c9d5ce340c8d76192b702da5a0
+
+2. FACTOR SCREENING RESULTS (research period 2016-2023)
+------------------------------------------------------------------------------
+  ivol_20d: passed_all=False
+    G0 oos_sharpe          = -1.9155741419793988   (results/factors/ivol_20d/gate_results.json → gate_metrics.G0_value)
+    G1 permutation_p       =          1.0   (gate_metrics.G1_value)
+    G2 ic_mean             = -0.007910927524391554   (gate_metrics.G2_value)
+    G3 ic_ir               = -0.05450822042709146   (gate_metrics.G3_value)
+    G4 max_drawdown        = -0.5776879169925186   (gate_metrics.G4_value)
+    G5 marginal_contrib    =          1.0   (gate_metrics.G5_value)
+    gates passed: 1/6
+
+  high_52w: passed_all=False
+    G0 oos_sharpe          = -1.229081288836479   (results/factors/high_52w/gate_results.json → gate_metrics.G0_value)
+    G1 permutation_p       =          1.0   (gate_metrics.G1_value)
+    G2 ic_mean             = -0.0054531194609347905   (gate_metrics.G2_value)
+    G3 ic_ir               = -0.023363446360345694   (gate_metrics.G3_value)
+    G4 max_drawdown        = -0.6066531440875367   (gate_metrics.G4_value)
+    G5 marginal_contrib    =          1.0   (gate_metrics.G5_value)
+    gates passed: 1/6
+
+  momentum_2_12: passed_all=False
+    G0 oos_sharpe          = 0.5164192013622269   (results/factors/momentum_2_12/gate_results.json → gate_metrics.G0_value)
+    G1 permutation_p       = 0.001996007984031936   (gate_metrics.G1_value)
+    G2 ic_mean             = 0.018886523293034075   (gate_metrics.G2_value)
+    G3 ic_ir               = 0.07768792142216094   (gate_metrics.G3_value)
+    G4 max_drawdown        = -0.2827050762010974   (gate_metrics.G4_value)
+    G5 marginal_contrib    =          1.0   (gate_metrics.G5_value)
+    gates passed: 4/6
+
+3. ARTIFACT HASHES (SHA-256 of committed evidence)
+------------------------------------------------------------------------------
+  5feb0395338dcc76…  results/factors/ivol_20d/gate_results.json
+  f12f7866d0637545…  results/factors/ivol_20d/screening_metrics.json
+  c619cc97975df990…  results/factors/high_52w/gate_results.json
+  0c2334d8c1610644…  results/factors/high_52w/screening_metrics.json
+  9002b67cfde1a0a1…  results/factors/momentum_2_12/gate_results.json
+  474270b079cf70e7…  results/factors/momentum_2_12/screening_metrics.json
+  9cf29f93f4ba743e…  results/research_log.jsonl
+  75e6943cd4ada6aa…  config/strategy_params.yaml
+  521b7571c330a5a1…  config/gates.yaml
+  5d1fbc4bf257cd47…  config/falsification_triggers.yaml
+
+4. WHAT THIS MANIFEST DOES NOT COVER
+------------------------------------------------------------------------------
+  - Holdout backtest (2024-2025): intentionally not executed
+  - Paper trading results: pre-trade phase only
+  - Live fills, slippage, reconciliation: no live deployment yet
+  - Piotroski / accruals / profitability: blocked on EDGAR adapter
+  - Short interest factors: blocked on FINRA adapter
+
+5. NEXT REPRODUCIBILITY MILESTONE
+------------------------------------------------------------------------------
+  TODO-3 (EDGAR + FINRA adapters) → 5 fundamental factors screenable
+  TODO-9 (RSP cap-weight benchmark) → OUTCOME_VS_FORECAST rebased on RSP
+  Paper-trade start → live.duckdb + fill reconciliation manifest
+
+==============================================================================
+END MANIFEST

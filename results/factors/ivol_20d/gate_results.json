@@ -1,0 +1,20 @@
+{
+  "factor_name": "ivol_20d",
+  "gate_results": {
+    "G0": false,
+    "G1": false,
+    "G2": false,
+    "G3": false,
+    "G4": false,
+    "G5": true
+  },
+  "gate_metrics": {
+    "G0_value": -1.9155741419793988,
+    "G1_value": 1.0,
+    "G2_value": -0.007910927524391554,
+    "G3_value": -0.05450822042709146,
+    "G4_value": -0.5776879169925186,
+    "G5_value": 1.0
+  },
+  "passed_all": false
+}

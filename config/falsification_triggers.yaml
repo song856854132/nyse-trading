@@ -1,0 +1,60 @@
+# Pre-registered falsification triggers — FROZEN before first live trade.
+# No retroactive threshold adjustment permitted.
+# Hash of this file is checked at runtime (see TODO-1 in TODOS.md).
+
+frozen_date: "2026-04-15"
+
+triggers:
+  F1_signal_death:
+    metric: rolling_ic_60d
+    threshold: 0.01
+    months: 2
+    severity: VETO
+    description: "Rolling 60-day IC below 0.01 for 2+ months"
+
+  F2_factor_death:
+    metric: core_factor_sign_flips
+    threshold: 3
+    months: 2
+    severity: VETO
+    description: "3+ core factors flip sign for 2+ months"
+
+  F3_excessive_drawdown:
+    metric: max_drawdown
+    threshold: -0.25
+    severity: VETO
+    description: "Max drawdown exceeds -25%"
+
+  F4_concentration:
+    metric: max_single_stock_weight
+    threshold: 0.15
+    severity: WARNING
+    description: "Single stock weight exceeds 15%"
+
+  F5_turnover_spike:
+    metric: monthly_turnover_pct
+    threshold: 200
+    severity: WARNING
+    description: "Monthly turnover exceeds 200%"
+
+  F6_cost_drag:
+    metric: annual_cost_drag_pct
+    threshold: 5.0
+    severity: WARNING
+    description: "Annual cost drag exceeds 5% of gross"
+
+  F7_regime_anomaly:
+    metric: benchmark_split_adjusted
+    threshold: false
+    severity: WARNING
+    description: "Benchmark may not be split-adjusted"
+
+  F8_data_staleness:
+    metric: max_feature_staleness_days
+    threshold: 10
+    severity: WARNING
+    description: "Most stale feature exceeds 10 days"
+
+# Response protocol:
+#   VETO: Halt live trading, switch to paper, investigate. Telegram alert.
+#   WARNING: Reduce exposure to 60%, review within 1 week. Dashboard + Telegram.

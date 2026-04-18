@@ -1,0 +1,26 @@
+# Data source configuration. API keys via environment variables ONLY (AP-13).
+
+finmind:
+  base_url: "https://api.finmindtrade.com/api/v4"
+  token_env_var: "FINMIND_API_TOKEN"
+  rate_limit_per_minute: 30
+  datasets:
+    ohlcv: "USStockPrice"
+    info: "USStockInfo"
+  bulk_start_date: "2016-01-01"
+
+edgar:
+  base_url: "https://data.sec.gov"  # companyfacts API host
+  rate_limit_per_second: 10
+  user_agent_env_var: "EDGAR_USER_AGENT"  # SEC requires user-agent with contact info
+  filing_types: ["10-Q", "10-K"]
+
+finra:
+  short_interest_url: "https://api.finra.org/data/group/otcMarket/name/shortInterest"
+  publication_lag_days: 11  # FINRA publishes ~11 days after settlement date
+  update_frequency: "bi-monthly"
+
+constituency:
+  source: "wikipedia"  # S&P 500 historical changes from Wikipedia tables
+  backup_source: "manual_csv"
+  csv_path: "config/sp500_changes.csv"
