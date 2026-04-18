@@ -2,7 +2,7 @@
 
 **Phase-by-Phase Development History**
 
-**Version 0.4 | April 2026 | Living Document**
+**Version 0.5 | April 2026 | Living Document**
 
 ---
 
@@ -24,7 +24,7 @@
 
 This project builds a cross-sectional S&P 500 equity factor strategy for NYSE, adapting lessons from a 63-phase TWSE predecessor that achieved Sharpe 1.186. The key architectural decisions were made before writing code, drawn from hard-won TWSE experience: Ridge over GBM by default, rank-percentile normalization, sell buffer hysteresis, binary regime overlay, expanding walk-forward windows, and pure-logic core modules with no I/O.
 
-**Current state:** v0.4. Research pipeline complete. 934 tests passing (680 unit, 120 integration, 104 property, 30 skipped for optional dependencies). Next phase: paper trading.
+**Current state:** v0.5. Research pipeline complete (998 tests passing). **Factor admission on real 2016-2023 S&P 500 data: 0 of 6 Tier-1 / Tier-2 factors pass G0-G5.** Ivol_20d, high_52w, momentum_2_12 (price-volume, Phase 3 first wave, 2026-04-17/18); piotroski, accruals, profitability (fundamentals, post EDGAR-companyfacts adapter rewrite + 308,660 fact row ingestion, 2026-04-18). Ensemble is structurally unbuildable until at least one factor clears the gates. Phase 5 paper trading **not imminent** — blocked on ≥3 admitted factors or an abandonment-criteria decision. Pre-registered abandonment criteria A1-A12 frozen 2026-04-18 (`docs/ABANDONMENT_CRITERIA.md`); A1 (10/13 fail → PAUSE) is 4 factors away from firing. Holdout (2024-2025) intact — lockfile absent. Next: Tier-3 factor screens, regime-conditional variants, 20-day horizon re-screens — each requires a fresh pre-registration per AP-6.
 
 **Repository structure:**
 
@@ -300,6 +300,80 @@ The first factor run on real FinMind OHLCV data **falsified the TWSE prior**. iv
 - A regime-conditional ivol variant (IVOL × SMA-200 gate) is captured as deferred research in TODOS.md.
 
 **Why this matters:** The gate system worked. It detected a regime-shifted anomaly on the first run and refused admission. A system that had used relaxed thresholds or a "directional prior" override would have admitted ivol_20d anyway and absorbed the -1.92 Sharpe into the ensemble. The six-gate architecture is validated as working by virtue of FAILING here.
+
+#### Second and Third Real-Data Screens: high_52w FAIL, momentum_2_12 BORDERLINE FAIL (2026-04-18)
+
+Per TODO-24, the next two immediately-runnable price-volume factors were screened with the same (unchanged) pipeline, configs, and sign conventions. Both fail on 2016-2023.
+
+| Factor | G0 OOS Sharpe | G1 perm p | G2 IC_mean | G3 IC_IR | G4 MaxDD | Verdict |
+|--------|--------------:|----------:|-----------:|---------:|---------:|---------|
+| ivol_20d | **-1.92** | 1.00 | -0.008 | -0.055 | -0.578 | FAIL (all) |
+| high_52w | **-1.23** | 1.00 | -0.0055 | -0.023 | -0.607 | FAIL (all) |
+| momentum_2_12 | **0.516** | **0.002** | 0.0189 | 0.078 | -0.283 | FAIL (G2/G3 only) |
+
+**Evidence:** `results/factors/{high_52w,momentum_2_12}/gate_results.json`, `results/factors/{high_52w,momentum_2_12}/screening_metrics.json`, `results/research_log.jsonl` (hash-chained; chain tip updated; see `docs/RESEARCH_RECORD_INTEGRITY.md`).
+
+**momentum_2_12 is borderline:** OOS Sharpe 0.516 passes G0; permutation p 0.002 passes G1 strongly; MaxDD -28.3% passes G4. But G2 misses by literally one basis point (0.0189 vs 0.02 threshold) and G3 misses by 6x (0.078 vs 0.5). **Interpretation:** momentum has a real, small, directional edge in this window — but the per-period noise is too high for the factor to pay for itself in an ensemble. The gate system is doing exactly what it was designed to do.
+
+**AP-6 DISCIPLINE under pressure:** The momentum_2_12 "miss by 0.0011 on G2" is the first serious test of AP-6. The temptation to lower G2 from 0.02 → 0.018 to admit momentum is strong. We do not. Reasons:
+
+1. Any post-hoc threshold change opens a regress: next factor fails by 0.0009, then by 0.0008, etc.
+2. G3 IC_IR fails by 6x regardless of G2 — the factor is not rescued by moving one threshold.
+3. AP-6 is load-bearing for the credibility of the entire research record. Its value is entirely in being inviolable.
+
+**Pattern across three Tier-1 price-volume factors (2016-2023):**
+
+- **ivol_20d:** FAIL. Signal exists pre-2020 (raw IC +0.0213) but inverts in the full window.
+- **high_52w:** FAIL. Sign inverts — "stocks near high" anti-predicts forward returns in this period.
+- **momentum_2_12:** FAIL (borderline). Signal is directionally present and statistically significant (p=0.002) but too noisy for G3.
+
+This is not a coincidence. The 2020-2023 sub-window contains three regime-distorting events (COVID crash, retail-meme squeeze, rates shock) and a mega-cap / AI concentration era that disproportionately damages behavioral-anchoring and low-frequency-diffusion signals. It is consistent with the broader "factor zoo compression post-2015" literature. See `docs/OUTCOME_VS_FORECAST.md` §"Pattern observation: 3/3 price-volume Tier-1 factors have failed" for full analysis.
+
+**Implication for the research record:**
+
+- The Phase-3 exit target "OOS Sharpe 0.5-0.8" is now at risk unless fundamental factors carry the ensemble alone, or combine with residual momentum signal in a way that survives its own G0-G5 pipeline.
+- Fundamental signals (piotroski, accruals, profitability) are now the critical path. Not yet screened — blocked on EDGAR + FINRA ingestion (see TODO-3, TODO-51).
+- A regime-conditioned IVOL variant (TODO-23) remains a legitimate research path but must be **freshly pre-registered** before being screened. No retroactive save of a failing factor.
+- Ensemble construction cannot proceed until we have ≥3 factors passing G0-G5. Currently 0/3.
+
+**Chain-integrity incident (2026-04-18):** During this screening run, `scripts/screen_factor.py` was writing raw (non-hash-chained) entries to `results/research_log.jsonl` from a pre-chain code path. A subsequent `append_research_log.py` call read the trailing raw entry, found no `hash` field, defaulted to GENESIS, and started a fork chain. The incident was caught by `scripts/verify_research_log.py` within minutes. Repair: (a) backed up the broken tail to `results/research_log.jsonl.pre-repair-2026-04-18`; (b) hardened `_last_hash()` to scan for the last line carrying a hash field, chaining past any trailing legacy entries; (c) patched `screen_factor.py` to call `append_event()`; (d) appended a `chain_repair_note` event documenting the incident (hash `f7486997...4f48fde5`); (e) re-ran both screens with correct logging. No research findings were altered — only the transport of those findings into the chain was rebuilt. This is documented here so that future auditors reading `results/research_log.jsonl.pre-repair-2026-04-18` against the current log can reconcile the two.
+
+#### Fourth, Fifth, and Sixth Real-Data Screens: Fundamental Factors All FAIL (2026-04-18)
+
+After the EDGAR companyfacts adapter was rewritten to (a) correctly dereference XBRL tag variants across S&P 500 filers and (b) atomically ingest 308,660 fact rows for all 503 current constituents, three fundamental factors were screened through G0-G5 in order: piotroski (F-score, 9 binary financial-strength signals), accruals (Collins-Hribar `OANCF − NI` proxy), profitability (Novy-Marx gross-profits-to-assets).
+
+| Factor | G0 OOS Sharpe | G1 perm p | G2 IC_mean | G3 IC_IR | G4 MaxDD | Verdict |
+|--------|--------------:|----------:|-----------:|---------:|---------:|---------|
+| piotroski | 0.039 | **0.002** | 0.0090 | 0.089 | −0.216 | FAIL (G0/G2/G3) |
+| accruals | **0.577** | **0.002** | 0.0080 | 0.062 | −0.272 | FAIL (G2/G3) |
+| profitability | **1.148** | **0.002** | 0.0158 | 0.113 | −0.190 | FAIL (G2/G3) |
+
+**Evidence:** `results/factors/{piotroski,accruals,profitability}/gate_results.json`, `results/factors/{piotroski,accruals,profitability}/screening_metrics.json`, `results/research_log.jsonl` (hash-chained; verifier output: 18 chained entries, 0 broken as of 2026-04-18).
+
+**Shared failure signature.** All three show the same three-gate pattern: **G1 PASS + G2 FAIL + G3 FAIL**. Permutation p-values (0.002 at 500 reps) hit the floor — the signals are statistically distinguishable from noise. But the cross-sectional IC (0.008–0.016) is roughly half the G2 admission floor, and the IC-IR (0.06–0.11) is 4–8× below the G3 threshold of 0.5.
+
+**What this means economically.** Profitability's gross long-short Sharpe of 1.15 with a −19% MaxDD over 8 years on 503 names is a real result. But the edge is diffuse — most of the Sharpe lives in decile-tail differentiation, not per-name ranking. In a Ridge ensemble on rank-percentile features that needs per-name signal, and in a weekly-rebalance cost structure where 15 bps one-way eats 0.01-IC edges, the gates correctly block admission.
+
+**Plan-vs-gate threshold discrepancy (documented, not resolved).** The plan text at §Factor Priority specifies `ic_ir ≥ 0.02` for G1-standalone. The live `config/gates.yaml` carries `ic_ir ≥ 0.5`. 0.5 is materially stricter than academic norms (production cross-sectional factors typically live in 0.1–0.3). **Per AP-6 the threshold is NOT changed post-hoc after observing failures.** Any correction must be pre-registered as a plan-level diff with a separate research-log `correction` event dated before the next re-screen. This is logged here for reviewer transparency.
+
+**AP-6 compliance confirmed across the wave.** No sign flips, no threshold adjustments, no retroactive admission. See `docs/OUTCOME_VS_FORECAST.md` §"Pattern observation (update): 6/6 Tier-1+2 factors have failed 2016-2023".
+
+**Aggregate standing after six factor screens.**
+
+- **Factor admission:** 0 of 6 attempted.
+- **Calibration:** Brier score 0.61 at n=7 (7 MISS on forecasts set at "PASS likely" 0.75 / "PASS plausible" 0.65). Under the plan's implicit prior of p_hit ≈ 0.65, 7/7 MISS is significant at p ≈ 0.0006. See `docs/CALIBRATION_TRACKER.md`.
+- **Abandonment criteria** (`docs/ABANDONMENT_CRITERIA.md`, frozen 2026-04-18): A1 (10/13 fail → PAUSE) is 4 factors away from firing. A2 (13/13 fail → PIVOT) is 7 factors away.
+- **Phase 3 exit target** (OOS Sharpe 0.5–0.8): formally resolved as MISS — **unbuildable** with 0 admitted factors.
+
+**Five paths forward (all require fresh pre-registration):**
+
+A. Tier-3 factor screens — options flow, analyst revisions, NLP earnings transcripts, short interest (FINRA adapter built, not yet screened).
+B. Regime-conditional variants — ivol_20d × SMA-200 gate; momentum_2_12 sub-regime splits. Must be freshly pre-registered, not retroactively re-admitted.
+C. 20-day forward-return re-screens — plan's secondary target. Fundamentals in particular tend to express at longer horizons. Low-cost first experiment (≈1 hour of compute).
+D. Threshold pre-registration review — only admissible if the plan's 0.02 in the text was the genuine original intent and 0.5 in gates.yaml was transcription error; must be logged as a `correction` event diff dated before re-screening.
+E. Renegotiate Phase 3 exit target — "any factor passes G0-G5" rather than ensemble Sharpe 0.5–0.8. Calibrates the plan to what the data actually supports, not what the TWSE priors expected.
+
+Path C is the recommended next action because (a) cheapest to run, (b) directly tests whether 5-day is the reason fundamentals are failing, (c) AP-6-compliant as a fresh forecast.
 
 ### Key Decisions Made
 

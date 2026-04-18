@@ -159,12 +159,20 @@
 > Added after the first real-data factor screen (ivol_20d) falsified the TWSE prior.
 > See `docs/INDEPENDENT_VALIDATION_DRAFT.md` §4 and `docs/OUTCOME_VS_FORECAST.md`.
 
-### TODO-23: Regime-Conditional IVOL Variant
-**What:** Evaluate `ivol_20d × SMA200_indicator` as a regime-conditional factor. Raw IC pre-2020 is +0.0213; the 2016-2023 aggregate failure appears driven by low-vol winter + Q1 2021 meme squeeze. A regime-gated variant may recover the premium without post-hoc curve-fitting.
-**Why:** The plain ivol_20d failed G0-G4 on 2016-2023 real data. Simply dropping the factor abandons a well-documented academic anomaly (Ang-Hodrick-Xing-Zhang 2006) that may still exist in conditional form. Simply re-running with changed thresholds violates AP-6. A variant with a theoretically motivated conditioner is a legitimate separate hypothesis — but it must pass G0-G5 on its own, and the conditioner (SMA200 on SPY) must be specified BEFORE the screen.
-**How to apply:** (1) Freeze conditioner definition — write it to `config/factor_variants.yaml` (new file) BEFORE running the screen. (2) Add `compute_ivol_20d_regime()` to `price_volume.py`. (3) Run full G0-G5 screen on the variant. (4) If it passes, it competes with plain ivol_20d and other factors via G5 marginal contribution. If it fails, the factor family is shelved and plain ivol is dropped from the ensemble.
-**Risk of overfitting:** High. The conditioner must be theoretically motivated (IVOL anomaly requires constrained short-selling + tight liquidity, which weakens in QE regimes). Do NOT try multiple conditioners. One variant, one screen, one verdict.
-**Depends on:** Nothing blocking. Estimated 2-3 hr.
+### TODO-23: Regime-Conditional IVOL Variant — EVIDENCE GATHERED 2026-04-18, DECISION DEFERRED
+**What:** Evaluate a regime-conditional ivol_20d variant. Original framing (2026-04-17): trade IVOL only in bull regimes, hoping to recover a pre-2020 premium.
+**Evidence from 2026-04-18 investigation** (`results/investigations/ivol_regime_2026-04-18.json`, research log event `ivol_20d_regime_stratified_ic`, chain entry hash `cfbf5e61...`):
+- Pre-2020 IC = -0.0071; post-2020 IC = -0.0087. **The pre/post-2020 structural break hypothesis is not supported.**
+- Bull-regime IC (SMA-200 on cap-weighted market) = -0.0010 (n=296, 51.0% positive). **Near zero — no tradeable bull-only variant.**
+- Bear-regime IC = -0.0342 (n=104, 47.1% positive). **Strong anti-signal, tradeable only with INVERTED sign** (long high-IVOL in drawdowns). That is a short-volatility / crisis-exposure factor, not an IVOL-anomaly factor — different risk profile, different friction hypothesis.
+- Year-level dispersion: 2019-2021 positive, 2016-2018 + 2022-2023 strongly negative. 4pp swing year-over-year.
+**Why this changes the decision:** The original TODO-23 hypothesis ("bull-regime IVOL recovers the premium") does not survive the evidence. What the data actually supports is an inverted-sign bear-regime variant — a *different factor* with a *different name and theory*. Conflating the two and calling it "ivol_20d × SMA200" would be retroactive narrative fitting (AP-6 violation even though no code has been touched).
+**What to do instead:**
+1. **Do nothing on regime-conditional ivol until fundamentals screen first.** Run piotroski, earnings_surprise, accruals, profitability through G0-G5. If the ensemble clears Sharpe ≥ 0.5 without any ivol variant, regime-ivol is moot.
+2. **If fundamentals also underperform expectations, revisit.** At that point, construct *one* pre-registered variant with an explicit friction hypothesis distinct from plain IVOL. Candidate: "short-volatility in drawdowns" (bear-only, inverted sign). Pre-register forecast in `results/research_log.jsonl` and `docs/OUTCOME_VS_FORECAST.md` BEFORE the screen, as a separate factor ID.
+3. **Do NOT build bull-only IVOL.** The data shows bull-regime IC ≈ 0, so the variant would have no premium. Building it anyway would be curve-fitting to a single non-tradeable statistic.
+**Risk of overfitting:** Still high. With 8 years of data and 3 regime definitions already examined, any further conditioning is implicitly mined. One variant, pre-registered, one screen, one verdict — OR shelve the factor family.
+**Depends on:** TODO-3 (EDGAR + FINRA adapters) to enable fundamental factor screening before revisiting this decision.
 
 ### TODO-24: Run high_52w and momentum_2_12 Screens Next
 **What:** Run `scripts/screen_factor.py --factor high_52w` and `scripts/screen_factor.py --factor momentum_2_12` on the populated `research.duckdb` before making any ensemble composition decisions.
@@ -189,3 +197,15 @@
 **Why:** The hash chain defends against silent edits to history, but an attacker with write access can still re-chain the entire file from scratch. External timestamping closes that gap cheaply. Required before the chain can be cited in LP / regulatory contexts.
 **How to apply:** Wrap in a script: `scripts/timestamp_research_chain.sh`. Initially: git tag. Later: add OpenTimestamps (`ots stamp`) for cryptographic third-party witness. Run manually for first 3 months, then CI.
 **Depends on:** `scripts/verify_research_log.py` (shipped 2026-04-18), git.
+
+### TODO-28: Broader-Research MCP Tooling (Perplexity / Web Search)
+**What:** Wire a research-class MCP (Perplexity, Brave Search, or equivalent) into the Claude Code environment so the documentation / validation workflow can cite current external literature without the operator having to context-switch to a browser.
+**Why:** The `/sparc:documenter` review on 2026-04-18 asked for Perplexity-driven analysis of institutional LP documentation standards (AIMA 2025 DDQ, ILPA DDQ v1.2, SR 11-7 interpretations, FMSB 2025). Without a live search tool, the doc drafter relies on training-cutoff knowledge and cannot verify that cited standards are current. This gap is not load-bearing for pre-live research but is load-bearing for any LP-facing document (DDQ responses, quarterly letters, validation reports).
+**How to apply:** (1) Add a search-class MCP server to `~/.claude/settings.json`. Perplexity API requires a key; free tier is usable for document research. (2) Document allowed queries in a new `docs/EXTERNAL_RESEARCH_POLICY.md` — specifically, what can be searched (public standards, academic papers) vs what cannot (queries that might leak the strategy). (3) Re-run `/sparc:documenter` with the MCP active and capture the reviewer's second-pass findings in an amendment to `docs/REVIEW_CHECKLIST.md`.
+**Depends on:** Nothing technical. Operator decision on which search MCP to adopt + API-key procurement.
+
+### TODO-29: Quarterly Calibration-Curve Figure
+**What:** At n ≥ 10 resolved forecasts in `OUTCOME_VS_FORECAST.md`, auto-generate a rolling Brier-score curve and save as `docs/figures/calibration_curve.png`.
+**Why:** `CALIBRATION_TRACKER.md` (shipped 2026-04-18) commits to this artifact but cannot produce it at n = 7. Once the Tier-3 screens and regime variants land, sample size clears the threshold. Figure is a direct LP-facing artifact.
+**How to apply:** Extend `scripts/generate_outcome_tracker.py` with a `--figure` flag. Use matplotlib. 4-forecast rolling window; annotate no-skill baseline at 0.56 and perfect-forecaster baseline at 0.0. Commit the PNG under `docs/figures/`.
+**Depends on:** At least 4 additional resolved forecasts (Tier-3 factors or regime variants), `scripts/generate_outcome_tracker.py` baseline implementation.

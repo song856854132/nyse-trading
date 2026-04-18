@@ -72,6 +72,41 @@ review before live capital deployment.
 
 Total: 26 pure-logic modules in `nyse_core/`, plus side-effect adapters in `nyse_ats/`.
 
+### 2.1 SR 11-7 three-component mapping
+
+Per Federal Reserve / OCC SR 11-7 (2011-04-04), every model is defined by
+three components, each of which requires independent validation evidence.
+The table below maps our system to those components. This section exists
+to give a third-party reviewer (AIMA DDQ §5.3, ILPA §14) a single
+entry-point to the Fed framework.
+
+| SR 11-7 component | What it is | Where it lives in this system | Validation evidence |
+|---|---|---|---|
+| **(1) Information input** | All data that enters the model, including assumptions and overrides | FinMind OHLCV, SEC EDGAR XBRL fundamentals, FINRA short interest, S&P 500 constituency, config YAMLs, environment variables | §4 Data Quality Validation; `scripts/validate_data.py`; PiT enforcement in `src/nyse_core/pit.py`; config Pydantic schema in `src/nyse_core/config_schema.py` |
+| **(2) Processing component** | The computational core that transforms input into output | `src/nyse_core/` (26 pure-logic modules): features → normalize → impute → Ridge/GBM/Neural → allocator → risk → portfolio | §3 Conceptual Soundness; §5 Implementation Testing; 90%+ test coverage target; AP-1..AP-13 invariants enforced in code |
+| **(3) Reporting output** | How the model's outputs are produced, labeled, and communicated | `TradePlan` dataclass (contracts.py), backtest results JSON, `docs/backtest_metrics.json`, `docs/OUTCOME_VS_FORECAST.md` (prediction-error tracker), `docs/QUARTERLY_LETTER_TEMPLATE.md`, Streamlit dashboard, Telegram alerts | §6 Outcomes Analysis; §7.3 Performance attribution; `attribution.py`; outcome calibration in OUTCOME_VS_FORECAST |
+
+Each component has its own failure surface. SR 11-7 §III.5 requires all
+three to be validated; failure in any one invalidates the model. The
+current state of the three components on 2026-04-18:
+
+- **(1) Input.** Real S&P 500 OHLCV + EDGAR fundamentals confirmed loaded
+  (research.duckdb, 503 symbols, 2016-2023). Survivorship bias
+  acknowledged in §4.3. PiT enforcement tested.
+- **(2) Processing.** All 26 modules present, test coverage >90%,
+  invariant tests passing. Ridge is default; GBM/Neural implemented but
+  not activated (strategy_registry gate not met).
+- **(3) Output.** Six factor screens produced honest FAIL verdicts on
+  2016-2023 research period. `OUTCOME_VS_FORECAST.md` tracks
+  prediction-calibration. Quarterly letter template drafted. No live
+  trading; dashboard / Telegram paths built but idle.
+
+**Validator verdict (2026-04-18):** Components (1) and (2) are validated
+at a draft level. Component (3) is functional but sparse — there are
+no live outcomes yet because no factor has been admitted. A full SR
+11-7 §V.2 outcomes-analysis requires at least one admitted factor on
+real data; this bar is not yet met.
+
 ---
 
 ## 3. Conceptual Soundness

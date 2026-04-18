@@ -166,15 +166,128 @@ verifies the pipeline recovers them at SNR > 10x. These results validate
 Any metric presented without "OOS on real data" in its caption is a
 synthetic number.
 
-### 4.5 What we do not yet know
+### 4.5 Second screening wave (2026-04-17 to 2026-04-18): price/volume + fundamentals
 
-- Whether any factor passes G0-G5 on real NYSE data. `ivol_20d` is one of thirteen; the remaining factors have not yet been screened on the new `research.duckdb`.
-- Whether the ensemble (Ridge across 13 factors) passes G0-G5 on the research period.
-- Whether any of the above transfers to the 2024-2025 holdout.
+After `ivol_20d` failed, five additional Tier-1 and Tier-2 factors were
+screened on the same 2016-2023 research panel using real S&P 500 OHLCV
+and SEC EDGAR XBRL fundamentals. All five failed at least one gate.
+Aggregate table (all pre-ensemble, all 2016-2023 research period):
 
-**These are the outcomes that SR 11-7 §V.2 requires us to evaluate. They
-are not yet evaluable. This draft will be updated as each data point
-lands.**
+| Factor | G0 Sharpe | G1 perm-p | G2 IC | G3 IC_IR | G4 MaxDD | Passed |
+|---|---:|---:|---:|---:|---:|:---:|
+| ivol_20d | **-1.9156** | **1.0000** | **-0.0079** | **-0.0545** | **-0.578** | 1/6 (G5 only) |
+| high_52w | **-1.2291** | **1.0000** | **-0.0055** | **-0.0234** | **-0.607** | 1/6 (G5 only) |
+| momentum_2_12 | 0.5164 | 0.0020 | **0.0189** | **0.0777** | -0.283 | 4/6 |
+| piotroski | **0.0385** | 0.0020 | **0.0090** | **0.0892** | -0.216 | 4/6 |
+| accruals | 0.5765 | 0.0020 | **0.0080** | **0.0623** | -0.272 | 4/6 |
+| profitability | 1.1477 | 0.0020 | **0.0158** | **0.1130** | -0.190 | 4/6 |
+
+**Bold = failed gate.** `G5 = marginal_contribution > 0` is a sentinel
+(1.0) for the first factor of each family and not a real test; no factor
+cleared gates G0-G4 end-to-end.
+
+**Failure pattern — three clusters:**
+
+1. **Complete structural failure (2 factors):** `ivol_20d`, `high_52w`.
+   Negative Sharpe, permutation p ≈ 1.0, negative IC, catastrophic
+   drawdown. Both are price/volume momentum-flavored and both inverted
+   on the 2016-2023 period (FAANG+meme-stock era). These factors are
+   *wrong-signed on this period*, not weak.
+2. **Weak-but-positive (3 fundamentals):** `accruals`, `profitability`,
+   `piotroski` all have the correct sign (positive IC, positive Sharpe)
+   but IC far below the G2 threshold (0.008-0.016 observed vs ≥ 0.02
+   required) and IC_IR far below G3 (0.06-0.11 observed vs ≥ 0.50
+   required). Fundamental quality effects exist in direction but at
+   too small a magnitude to cross gates weekly.
+3. **Momentum partial (1 factor):** `momentum_2_12` passed G0 Sharpe
+   (+0.516), G1 permutation, G4 drawdown — but G2 IC (0.019) and G3
+   IC_IR (0.078) are below thresholds. This is the opposite of the
+   TWSE outcome (where momentum failed catastrophically). NYSE
+   momentum has a real but low-information-ratio signal.
+
+### 4.6 Threshold interpretation (plan doc vs `gates.yaml`)
+
+The plan document (`docs/plan.md` — dreamy-riding-quasar) lists
+"G3_walk_forward: oos_sharpe_delta > 0" as the G3 check. The
+implementation in `config/gates.yaml` sets G3 as `ic_ir ≥ 0.50`
+(marginal contribution to ensemble IC). These are two different
+checks. The implementation is stricter (IC_IR ≥ 0.50 is a
+Grinold-Kahn-caliber bar). **Validator note:** the current gate
+configuration is *conservative* — it is possible that a factor
+failing implementation-G3 (IC_IR < 0.50) could have passed the
+plan-text version of G3. AP-6 forbids re-negotiation after results
+are known; the `gates.yaml` thresholds are treated as frozen.
+A separate decision record is required to argue that the plan text
+should be the canonical gate (it should not, pre-result), or that
+the thresholds were mis-pre-specified (evidence required).
+
+### 4.7 Code-vs-signal diagnosis for the 6-factor wave
+
+- **ivol_20d, high_52w:** Raw-IC sanity check confirms the textbook
+  sign inverted on 2016-2023 (see §4.2 for ivol_20d; identical
+  reasoning for high_52w — stocks at 52w-high extended into FAANG+
+  AI concentration).
+- **momentum_2_12:** Direction matches the Jegadeesh-Titman (1993)
+  cross-sectional premium. IC_IR shortfall matches Asness et al.
+  (2014) finding that U.S. long-only cross-sectional momentum has
+  information ratios of 0.3-0.5 range, which is below the
+  strict `gates.yaml` threshold of 0.50.
+- **piotroski, accruals, profitability:** All three match
+  academic signs (high F-score = buy, low accruals = buy, high
+  gross-profits/assets = buy). Magnitudes are consistent with
+  quarterly (not weekly) fundamental effects — a weekly rebalance
+  captures limited incremental information between quarterly filings.
+
+**Validator verdict:** All six failures are *legitimate signal-level
+outcomes*, not code bugs. The pipeline screened honestly and
+rejected all attempted factors.
+
+### 4.8 Aggregate outcome
+
+**0 of 6 Tier-1 + Tier-2 factors passed G0-G5 on the 2016-2023 research
+period.** The `docs/OUTCOME_VS_FORECAST.md` tracker shows 7 out of 7
+plan-doc predictions for research-period performance were incorrect
+(see calibration summary in that document). This is informative: the
+plan's prior on factor admission was calibrated to a TWSE-like hit
+rate (~30%, corresponding to ~4 of 13 factors passing) and the
+observed hit rate is 0%. Three non-exclusive paths forward:
+
+- **A) Tier-3 factors.** Options flow, analyst revisions, NLP earnings
+  — none yet attempted. Different data, different frictions, different
+  failure modes. This is the only path that expands the hypothesis
+  set without relaxing thresholds.
+- **B) Regime-conditional variants.** Re-screen momentum and the
+  three fundamentals in bear-regime-only slices (SPY < SMA200). This
+  is compatible with AP-6 only if the regime split was pre-specified
+  in the plan (it was — see `strategy_params.yaml: regime`); the
+  variant is screened as a *new factor* with its own G0-G5 verdict.
+- **C) Horizon change.** Re-screen fundamentals at 20-day forward
+  horizon. Plan-text specifies 20-day as a secondary target; purge
+  gap auto-adjusts. 20-day is more consistent with the quarterly
+  frequency of fundamental updates. Must be registered as a new
+  screen, not a re-interpretation of the 5-day outcome.
+
+Threshold re-negotiation (path D) is forbidden by AP-6. Stopping the
+NYSE cross-sectional thesis entirely (path E) is pre-specified in
+`docs/ABANDONMENT_CRITERIA.md` — see that document for the explicit
+stop-conditions.
+
+### 4.9 What we do not yet know
+
+- **Answered (partial):** whether *any* Tier-1 or Tier-2 factor passes
+  G0-G5 on real NYSE data. Outcome: 0/6.
+- **Still open:** whether any Tier-3 factor (options, NLP, analyst
+  revisions) passes. Not yet attempted.
+- **Still open:** whether any regime-conditional variant passes.
+- **Still open:** whether any factor passes with 20-day forward horizon.
+- **Still open (conditional):** ensemble G0-G5 on 2016-2023 — cannot be
+  evaluated while zero factors are admitted.
+- **Still open (one-shot):** whether the above transfers to the
+  2024-2025 holdout. Holdout lockfile intact.
+
+**SR 11-7 §V.2 requires outcomes evaluation. Six outcomes are
+evaluated; roughly seven to ten remain to be evaluated before any
+live-capital decision is defensible.**
 
 ---
 
@@ -206,7 +319,7 @@ the post-freeze immutability is policy, not enforcement.
 ## 6. Limitations
 
 1. **Self-validation.** §1 limitation. Cannot catch developer blind spots.
-2. **No real-data ensemble test yet.** Only one factor (ivol_20d) has been screened on real data.
+2. **No real-data ensemble test yet.** Six factors screened on real data; none admitted; ensemble is structurally unbuildable until at least one factor clears gates.
 3. **Survivorship bias.** Universe is current S&P 500 membership, not PiT membership. Understated drawdowns during regime breakpoints.
 4. **Holdout is precious.** 2024-2025 is reserved. Once consumed, the validation has no remaining out-of-sample data. The draft cannot be re-run.
 5. **Frozen-triggers not code-enforced.** Policy-level freeze, not hash-lock. See TODO-1.
@@ -218,7 +331,7 @@ the post-freeze immutability is policy, not enforcement.
 
 **Do NOT deploy real capital until:**
 
-1. At least 3 factors pass G0-G5 on real data. (Current: 0 of 1.)
+1. At least 3 factors pass G0-G5 on real data. (Current: **0 of 6 attempted** — ivol_20d, high_52w, momentum_2_12, piotroski, accruals, profitability all FAIL. See §4.5-4.8.)
 2. Ensemble backtest passes G0-G5 on 2016-2023 research period.
 3. Full statistical validation suite passes (permutation p < 0.05, Romano-Wolf adjusted p < 0.05, bootstrap CI > 0).
 4. Parameter sensitivity ±20%.

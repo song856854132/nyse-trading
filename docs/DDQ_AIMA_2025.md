@@ -308,9 +308,11 @@ DDQ and re-circulating to LPs under any subscription agreement side letter provi
 | 15.1 | Has this strategy been traded live? | No. Pre-paper-trading stage. |
 | 15.2 | Prior-strategy live track record of operator | TWSE cross-sectional project (2025, 63 phases): paper Sharpe 1.186 gross. No LP capital was managed. |
 | 15.3 | Live / paper start date for this strategy | TBD — paper target Q3 2026 if factor screening succeeds. |
-| 15.4 | Current outcomes vs forecast | `docs/OUTCOME_VS_FORECAST.md` tracks. As of 2026-04-18: first real-data factor screen (ivol_20d) FAILED G0-G4 on 2016-2023, contradicting the "likely PASS" prior from TWSE. See also `docs/INDEPENDENT_VALIDATION_DRAFT.md` §4. |
-| 15.5 | Any material changes to strategy since research inception | Research in flight; no strategy has been committed to live. Plan drift is logged in `docs/NYSE_ALPHA_RESEARCH_RECORD.md`. |
-| 15.6 | Independent validation performed | No third-party validation. Internal draft is `docs/INDEPENDENT_VALIDATION_DRAFT.md` — labeled DRAFT / not approved, not a substitute. |
+| 15.4 | Current outcomes vs forecast | `docs/OUTCOME_VS_FORECAST.md` tracks. As of 2026-04-18, **six** Tier-1 / Tier-2 factors have been screened on 2016-2023 real S&P 500 data. All six FAILED G0-G5 admission. Price-volume: **ivol_20d** (Sharpe −1.92, IC −0.008, IR −0.055), **high_52w** (Sharpe −1.23, IC −0.006, IR −0.023), **momentum_2_12** (Sharpe 0.52, perm p 0.002, IC 0.019, IR 0.08). Fundamentals (post EDGAR-adapter rewrite, 308,660 fact rows ingested): **piotroski** (Sharpe 0.04, IC 0.009, IR 0.089), **accruals** (Sharpe 0.58, IC 0.008, IR 0.062), **profitability** (Sharpe 1.15 gross long-short, IC 0.016, IR 0.113). Zero factors have met the full admission bar; ensemble is structurally unbuildable. Aggregate calibration Brier score 0.61 at n=7 (`docs/CALIBRATION_TRACKER.md`) — the prior assumption that canonical factor anomalies would port cleanly is itself the headline finding. Pre-registered abandonment criteria A1-A12 now frozen at `docs/ABANDONMENT_CRITERIA.md`; condition A1 (10/13 fail → PAUSE) is 4 factors away from firing. AP-6 preserved throughout: no sign flips, no threshold loosening, no post-hoc gate relaxation. See `docs/INDEPENDENT_VALIDATION_DRAFT.md` §§4.5-4.9 and `results/reproduction_manifest.txt` for full provenance of every number. |
+| 15.4a | Regime-conditional investigation | 2026-04-18 stratified ivol_20d IC by SMA-200 regime. Bull-regime IC = −0.0010 (not tradeable, flat); bear-regime IC = −0.0342 (tradeable ONLY with inverted sign, which would be a different factor requiring its own pre-registration). Decision: not pursuing bull-only IVOL; would violate AP-6 if re-admitted with tuned threshold. Full methodology + result table: `docs/OUTCOME_VS_FORECAST.md` "Notes on investigation: ivol_20d regime stratification (2026-04-18)". Chain-anchored investigation event in `results/research_log.jsonl`. |
+| 15.5 | Any material changes to strategy since research inception | Research in flight; no strategy has been committed to live. Plan drift logged in `docs/NYSE_ALPHA_RESEARCH_RECORD.md`. Material findings since 2026-04-15 plan lock: (a) **0 of 6** Tier-1 / Tier-2 factors admitted to ensemble on real 2016-2023 S&P 500 data (ivol_20d, high_52w, momentum_2_12, piotroski, accruals, profitability all FAIL G0-G5); (b) failure pattern splits three ways — signal inverted (ivol_20d, high_52w), signal present but sub-floor magnitude (piotroski, accruals, profitability), signal present but too noisy for IC-IR threshold (momentum_2_12); (c) Phase 3 exit target (ensemble OOS Sharpe 0.5-0.8) is **unbuildable** on current factor set — formally resolved as MISS in the forecast tracker; (d) pre-registered abandonment criteria A1-A12 committed (`docs/ABANDONMENT_CRITERIA.md`) with A1 4 factors away from firing PAUSE; (e) calibration infrastructure stood up (`docs/CALIBRATION_TRACKER.md`, Brier 0.61 at n=7); (f) no factor has been added, removed, re-signed, or had its gates loosened — AP-6 discipline preserved end to end. Research paths forward (each requires fresh pre-registration): Tier-3 factors (options flow, analyst revisions, NLP), regime-conditional variants, 20-day forward-horizon re-screens. See `docs/OUTCOME_VS_FORECAST.md` §"Pattern observation: 6/6 Tier-1+2 factors failed". |
+| 15.6 | Reproducibility | `scripts/reproduce.sh` is a one-shot driver that re-downloads data, re-runs every screen, re-verifies the research-log hash chain, and emits `results/reproduction_manifest.txt` pairing every reported metric with its source artifact. A reviewer with the repo, a FinMind token, and Python 3.11+ can reproduce §15.4 numbers in a single command. |
+| 15.7 | Independent validation performed | No third-party validation. Internal draft is `docs/INDEPENDENT_VALIDATION_DRAFT.md` — labeled DRAFT / not approved, not a substitute. |
 
 ---
 
@@ -321,14 +323,14 @@ DDQ and re-circulating to LPs under any subscription agreement side letter provi
 | 1 Firm | `docs/SEC_FINRA_COMPLIANCE.md` |
 | 2 Strategy | `docs/NYSE_ALPHA_ONE_PAGER.md`, `docs/NYSE_ALPHA_TECHNICAL_BRIEF.md`, `config/strategy_params.yaml` |
 | 3 Process | `docs/NYSE_ALPHA_RESEARCH_RECORD.md`, `.claude/skills/alpha-research`, `src/nyse_core/` |
-| 4 Risk | `docs/MODEL_VALIDATION.md`, `config/falsification_triggers.yaml`, `src/nyse_core/risk.py` |
+| 4 Risk | `docs/MODEL_VALIDATION.md`, `docs/RISK_LIMITS.md`, `docs/STRESS_TEST_FRAMEWORK.md`, `config/falsification_triggers.yaml`, `src/nyse_core/risk.py` |
 | 5 Trading | `docs/FRAMEWORK_AND_PIPELINE.md`, `src/nyse_ats/execution/` |
 | 6 Compliance | `docs/SEC_FINRA_COMPLIANCE.md` |
-| 7 Ops | `docs/AUDIT_TRAIL.md`, `docs/RESEARCH_RECORD_INTEGRITY.md` |
+| 7 Ops | `docs/ODD_PACKAGE.md`, `docs/AUDIT_TRAIL.md`, `docs/RESEARCH_RECORD_INTEGRITY.md` |
 | 8 Tech | `docs/FRAMEWORK_AND_PIPELINE.md`, `docs/DISASTER_RECOVERY.md` |
-| 9 BCP/DR | `docs/DISASTER_RECOVERY.md` |
-| 10 Performance | `docs/NYSE_ALPHA_TECHNICAL_BRIEF.md`, `docs/OUTCOME_VS_FORECAST.md` |
-| 15 Track Record | `docs/INDEPENDENT_VALIDATION_DRAFT.md`, `docs/OUTCOME_VS_FORECAST.md`, `results/research_log.jsonl` |
+| 9 BCP/DR | `docs/DISASTER_RECOVERY.md`, `docs/ODD_PACKAGE.md` §6 |
+| 10 Performance | `docs/NYSE_ALPHA_TECHNICAL_BRIEF.md`, `docs/OUTCOME_VS_FORECAST.md`, `docs/ATTRIBUTION_METHODOLOGY.md`, `docs/QUARTERLY_LETTER_TEMPLATE.md` |
+| 15 Track Record | `docs/INDEPENDENT_VALIDATION_DRAFT.md`, `docs/OUTCOME_VS_FORECAST.md`, `results/research_log.jsonl`, `results/reproduction_manifest.txt`, `scripts/reproduce.sh` |
 
 ---
 
@@ -353,6 +355,8 @@ vendor selection, and the first paper-trade cycle:
 | Version | Date | Change |
 |---------|------|--------|
 | 0.1 | 2026-04-18 | Initial draft following AIMA 2025 template. Answered where codebase/docs support; TBD elsewhere. |
+| 0.2 | 2026-04-18 | §15.4 expanded: added high_52w + momentum_2_12 outcomes; added §15.4a for regime investigation; added §15.6 reproducibility driver. Appendix A cross-references extended to include RISK_LIMITS, STRESS_TEST_FRAMEWORK, ODD_PACKAGE, ATTRIBUTION_METHODOLOGY, QUARTERLY_LETTER_TEMPLATE. |
+| 0.3 | 2026-04-18 | §15.4 and §15.5 updated post-fundamental-screen: now reports 6/6 factor failures (added piotroski, accruals, profitability) with aggregate Brier 0.61 at n=7; cross-referenced new `docs/CALIBRATION_TRACKER.md` and `docs/ABANDONMENT_CRITERIA.md`; Phase 3 exit target resolved as MISS; AP-6 discipline preserved end to end. |
 
 ---
 

@@ -50,25 +50,39 @@ def _compute_hash(prev_hash: str, entry: dict) -> str:
 
 
 def _last_hash(log_path: Path) -> str:
+    """Return prev_hash for the next append.
+
+    Walks the entire file and returns the hash of the LAST line that carries a
+    `hash` field (i.e. the last chained entry). If no chained entries exist,
+    returns GENESIS (bootstraps a new chain over pre-chain legacy prologue).
+
+    Returning the *last chained* hash (not just the last line) defends against
+    a subtle bug: if any tool appends a raw/legacy-style entry after chained
+    entries, naively trusting the last line would cause a new fork-from-genesis
+    and silently break the chain. Instead we chain past any trailing legacy
+    entries, preserving integrity.
+    """
     if not log_path.exists() or log_path.stat().st_size == 0:
         return GENESIS_PREV_HASH
-    last_line = None
-    with log_path.open("rb") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                last_line = line
-    if last_line is None:
-        return GENESIS_PREV_HASH
-    try:
-        obj = json.loads(last_line)
-    except json.JSONDecodeError:
-        print(f"ERROR: last line of {log_path} is not valid JSON. "
-              "Run scripts/verify_research_log.py to diagnose.", file=sys.stderr)
-        sys.exit(2)
 
-    # Legacy entries (pre-chain) may not have a hash field — treat as genesis.
-    return obj.get("hash", GENESIS_PREV_HASH)
+    last_chained_hash: str | None = None
+    with log_path.open("rb") as f:
+        for raw in f:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+            except json.JSONDecodeError:
+                print(f"ERROR: non-JSON line in {log_path}. "
+                      "Run scripts/verify_research_log.py to diagnose.",
+                      file=sys.stderr)
+                sys.exit(2)
+            h = obj.get("hash")
+            if isinstance(h, str) and len(h) == 64:
+                last_chained_hash = h
+
+    return last_chained_hash if last_chained_hash is not None else GENESIS_PREV_HASH
 
 
 def append_event(log_path: Path, event: dict) -> dict:
