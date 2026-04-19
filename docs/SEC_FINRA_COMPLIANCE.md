@@ -149,6 +149,32 @@ Outage-log rows are append-only.
 
 ---
 
+## 7. Daily Compliance Attestation Templates
+
+SEC Rule 15c3-5 requires pre-order risk checks; FINRA Rule 3110 requires
+documented supervisory review. Two daily attestation templates implement both
+obligations as signed, commit-anchored forms:
+
+| Template | When | Purpose | File |
+|---|---|---|---|
+| Pre-trade attestation | Before first order of the day | 14 checks: kill-switch, VETO state, risk limits, data staleness, iron-rule compliance, TradePlan envelope | [`docs/templates/PRE_TRADE_ATTESTATION.md`](templates/PRE_TRADE_ATTESTATION.md) |
+| Post-trade attestation | After EOD reconciliation | 19 checks: fills vs plan, slippage, rejections, daily P&L vs limit, concentration, F1-F8, corporate actions, iron-rule compliance | [`docs/templates/POST_TRADE_ATTESTATION.md`](templates/POST_TRADE_ATTESTATION.md) |
+
+Both templates are **frozen as of 2026-04-19**. Changing any checklist item,
+threshold citation, or signing protocol requires an append row in
+`docs/GOVERNANCE_LOG.md` under the threshold-change authorization point
+(AP-6 applies). Daily-produced copies live under
+`results/attestations/{pre_trade,post_trade}/<YYYY-MM-DD>.md` and are retained
+6 years per §2.1.
+
+Override protocol: if any VETO-class row fails and trading continues, the
+exception row in §8/§11 of the attestation MUST reference both a `GL-NNNN`
+authorization row in `docs/GOVERNANCE_LOG.md` and an `AT-NNNN` incident row in
+`docs/AUDIT_TRAIL.md`. Missing references are themselves supervisory
+violations.
+
+---
+
 ## Appendix: Applicable Regulations Reference
 
 | Regulation | Full Title | Issuer | Year |
