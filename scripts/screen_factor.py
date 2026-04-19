@@ -10,12 +10,13 @@ Friday-close (T+5) rule as ``close[t+5] / close[t+1] - 1`` because daily
 bars don't carry intraday opens for every vendor. The purge horizon in
 PurgedWalkForwardCV remains 5 trading days either way.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 import duckdb
@@ -47,12 +48,12 @@ from nyse_core.schema import COL_CLOSE, COL_DATE, COL_SYMBOL
 # ~400 days of history so the first rebalance has a prior-year filing for
 # delta-based signals (Piotroski F3/F5/F6/F7/F8/F9).
 _FACTORS = {
-    "ivol_20d":      (compute_ivol_20d,            -1, "ohlcv",         30),
-    "high_52w":      (compute_52w_high_proximity,  +1, "ohlcv",        260),
-    "momentum_2_12": (compute_momentum_2_12,       +1, "ohlcv",        260),
-    "piotroski":     (compute_piotroski_f_score,   +1, "fundamentals", 400),
-    "accruals":      (compute_accruals,            -1, "fundamentals", 400),
-    "profitability": (compute_profitability,       +1, "fundamentals", 400),
+    "ivol_20d": (compute_ivol_20d, -1, "ohlcv", 30),
+    "high_52w": (compute_52w_high_proximity, +1, "ohlcv", 260),
+    "momentum_2_12": (compute_momentum_2_12, +1, "ohlcv", 260),
+    "piotroski": (compute_piotroski_f_score, +1, "fundamentals", 400),
+    "accruals": (compute_accruals, -1, "fundamentals", 400),
+    "profitability": (compute_profitability, +1, "fundamentals", 400),
 }
 
 
@@ -82,11 +83,13 @@ def _build_factor_panel(
         if sign == -1:
             series = -series
         ranked, _ = rank_percentile(series)
-        frame = pd.DataFrame({
-            "date":   ts.date(),
-            "symbol": ranked.index,
-            "score":  ranked.values,
-        })
+        frame = pd.DataFrame(
+            {
+                "date": ts.date(),
+                "symbol": ranked.index,
+                "score": ranked.values,
+            }
+        )
         rows.append(frame)
 
     if not rows:
@@ -119,11 +122,15 @@ def _build_forward_returns(
         fwd = fwd.dropna()
         if fwd.empty:
             continue
-        rows.append(pd.DataFrame({
-            "date":       ts.date(),
-            "symbol":     fwd.index,
-            "fwd_ret_5d": fwd.values,
-        }))
+        rows.append(
+            pd.DataFrame(
+                {
+                    "date": ts.date(),
+                    "symbol": fwd.index,
+                    "fwd_ret_5d": fwd.values,
+                }
+            )
+        )
 
     if not rows:
         return pd.DataFrame(columns=["date", "symbol", "fwd_ret_5d"])
@@ -200,24 +207,26 @@ def _build_fundamental_panel(
         if sign == -1:
             series = -series
         ranked, _ = rank_percentile(series)
-        rows.append(pd.DataFrame({
-            "date":   ts.date(),
-            "symbol": ranked.index,
-            "score":  ranked.values,
-        }))
+        rows.append(
+            pd.DataFrame(
+                {
+                    "date": ts.date(),
+                    "symbol": ranked.index,
+                    "score": ranked.values,
+                }
+            )
+        )
 
     if not rows:
         return pd.DataFrame(columns=["date", "symbol", "score"])
     return pd.concat(rows, ignore_index=True)
 
 
-def _gate_row(gate: str, metric_name: str, value: float, threshold: float,
-              direction: str, passed: bool) -> str:
+def _gate_row(
+    gate: str, metric_name: str, value: float, threshold: float, direction: str, passed: bool
+) -> str:
     arrow = {"pass": "PASS", "fail": "FAIL"}["pass" if passed else "fail"]
-    return (
-        f"{gate:<6}{metric_name:<24}{value:>10.4f}   "
-        f"{direction:<2}{threshold:<10.4f}{arrow}"
-    )
+    return f"{gate:<6}{metric_name:<24}{value:>10.4f}   {direction:<2}{threshold:<10.4f}{arrow}"
 
 
 def main() -> int:
@@ -226,15 +235,16 @@ def main() -> int:
     p.add_argument("--db-path", type=Path, default=Path("research.duckdb"))
     p.add_argument("--start-date", default="2016-01-01")
     p.add_argument("--end-date", default="2023-12-31")
-    p.add_argument("--output-dir", type=Path, default=None,
-                   help="Defaults to results/factors/<factor>/")
+    p.add_argument("--output-dir", type=Path, default=None, help="Defaults to results/factors/<factor>/")
     args = p.parse_args()
 
     start = date.fromisoformat(args.start_date)
     end = date.fromisoformat(args.end_date)
     if end >= date(2024, 1, 1):
-        print("REFUSED: end-date crosses holdout boundary (2024-01-01). "
-              "Research period ends 2023-12-31.", file=sys.stderr)
+        print(
+            "REFUSED: end-date crosses holdout boundary (2024-01-01). Research period ends 2023-12-31.",
+            file=sys.stderr,
+        )
         return 2
 
     compute_fn, sign, data_source, lookback_days = _FACTORS[args.factor]
@@ -245,23 +255,19 @@ def main() -> int:
     # itself is fundamentals-based.
     print(f"[1/5] Loading OHLCV {start} → {end} from {args.db_path}", flush=True)
     ohlcv = _load_ohlcv(args.db_path, start, end)
-    print(f"       rows={len(ohlcv):,}  symbols={ohlcv[COL_SYMBOL].nunique()}",
-          flush=True)
+    print(f"       rows={len(ohlcv):,}  symbols={ohlcv[COL_SYMBOL].nunique()}", flush=True)
 
     rebalance = _weekly_fridays(start, end)
     print(f"[2/5] Rebalance dates: {len(rebalance)} Fridays", flush=True)
 
     print(
-        f"[3/5] Computing {args.factor} scores "
-        f"(sign={sign}, source={data_source})...",
+        f"[3/5] Computing {args.factor} scores (sign={sign}, source={data_source})...",
         flush=True,
     )
     if data_source == "ohlcv":
         factor_scores = _build_factor_panel(ohlcv, rebalance, compute_fn, sign)
     elif data_source == "fundamentals":
-        lookback_start = start - pd.Timedelta(
-            days=lookback_days
-        ).to_pytimedelta()
+        lookback_start = start - pd.Timedelta(days=lookback_days).to_pytimedelta()
         # start is datetime.date, so (date - timedelta) is already datetime.date
         print(
             f"       loading fundamentals {lookback_start} → {end}",
@@ -273,9 +279,7 @@ def main() -> int:
             f"symbols={raw_facts[COL_SYMBOL].nunique() if not raw_facts.empty else 0}",
             flush=True,
         )
-        factor_scores = _build_fundamental_panel(
-            raw_facts, rebalance, compute_fn, sign
-        )
+        factor_scores = _build_fundamental_panel(raw_facts, rebalance, compute_fn, sign)
     else:
         print(f"UNKNOWN data_source: {data_source}", file=sys.stderr)
         return 2
@@ -294,12 +298,12 @@ def main() -> int:
 
     # ── Present ────────────────────────────────────────────────────────────
     gate_cfg = {
-        "G0": ("oos_sharpe",            0.30,  ">="),
-        "G1": ("permutation_p",         0.05,  "<"),
-        "G2": ("ic_mean",               0.02,  ">="),
-        "G3": ("ic_ir",                 0.50,  ">="),
-        "G4": ("max_drawdown",         -0.30,  ">="),
-        "G5": ("marginal_contribution", 0.00,  ">"),
+        "G0": ("oos_sharpe", 0.30, ">="),
+        "G1": ("permutation_p", 0.05, "<"),
+        "G2": ("ic_mean", 0.02, ">="),
+        "G3": ("ic_ir", 0.50, ">="),
+        "G4": ("max_drawdown", -0.30, ">="),
+        "G5": ("marginal_contribution", 0.00, ">"),
     }
     print("")
     print(f"FACTOR SCREENING: {args.factor}")
@@ -319,35 +323,43 @@ def main() -> int:
     gate_results_path = output_dir / "gate_results.json"
     screening_metrics_path = output_dir / "screening_metrics.json"
 
-    gate_results_path.write_text(json.dumps({
-        "factor_name":  verdict.factor_name,
-        "gate_results": verdict.gate_results,
-        "gate_metrics": verdict.gate_metrics,
-        "passed_all":   verdict.passed_all,
-    }, indent=2))
+    gate_results_path.write_text(
+        json.dumps(
+            {
+                "factor_name": verdict.factor_name,
+                "gate_results": verdict.gate_results,
+                "gate_metrics": verdict.gate_metrics,
+                "passed_all": verdict.passed_all,
+            },
+            indent=2,
+        )
+    )
 
-    screening_metrics_path.write_text(json.dumps({
-        "factor_name": args.factor,
-        "metrics":     {k: (float(v) if not pd.isna(v) else None)
-                        for k, v in metrics.items()},
-        "n_rebalance_dates": len(rebalance),
-        "n_score_rows":      int(len(factor_scores)),
-        "n_fwd_return_rows": int(len(fwd)),
-        "start_date":        str(start),
-        "end_date":          str(end),
-    }, indent=2))
+    screening_metrics_path.write_text(
+        json.dumps(
+            {
+                "factor_name": args.factor,
+                "metrics": {k: (float(v) if not pd.isna(v) else None) for k, v in metrics.items()},
+                "n_rebalance_dates": len(rebalance),
+                "n_score_rows": int(len(factor_scores)),
+                "n_fwd_return_rows": int(len(fwd)),
+                "start_date": str(start),
+                "end_date": str(end),
+            },
+            indent=2,
+        )
+    )
 
     # Hash-chained research log event (see docs/RESEARCH_RECORD_INTEGRITY.md).
     # Never write raw entries; the chain is load-bearing for AP-6 enforcement.
     log_entry = {
-        "event":       "factor_screen",
-        "factor":      args.factor,
-        "period":      f"{start}_{end}",
-        "passed_all":  verdict.passed_all,
+        "event": "factor_screen",
+        "factor": args.factor,
+        "period": f"{start}_{end}",
+        "passed_all": verdict.passed_all,
         "gate_results": verdict.gate_results,
-        "metrics":     {k: (float(v) if not pd.isna(v) else None)
-                        for k, v in metrics.items()},
-        "ap6_check":   "pass",  # sign convention not altered post-hoc
+        "metrics": {k: (float(v) if not pd.isna(v) else None) for k, v in metrics.items()},
+        "ap6_check": "pass",  # sign convention not altered post-hoc
     }
     append_event(Path("results/research_log.jsonl"), log_entry)
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Evaluate a factor through G0-G5 gates. Production entry point — thin wrapper."""
+
 import argparse
 import sys
 from pathlib import Path
@@ -14,8 +15,8 @@ def main() -> int:
 
     try:
         from nyse_ats.config_loader import load_and_validate_config
-        from nyse_core.gates import evaluate_factor_gates
         from nyse_ats.storage.research_store import ResearchStore
+        from nyse_core.gates import evaluate_factor_gates
     except ImportError as exc:
         print(f"Error: missing dependency — {exc}. Run 'pip install -e .'", file=sys.stderr)
         return 1
@@ -27,8 +28,14 @@ def main() -> int:
 
         # Build gate_config dict from the validated GatesConfig model
         gate_config = {}
-        for gate_name in ("G0_coverage", "G1_standalone", "G2_redundancy",
-                          "G3_walk_forward", "G4_full_sample", "G5_date_align"):
+        for gate_name in (
+            "G0_coverage",
+            "G1_standalone",
+            "G2_redundancy",
+            "G3_walk_forward",
+            "G4_full_sample",
+            "G5_date_align",
+        ):
             gcfg = getattr(gates_cfg, gate_name)
             short_name = gate_name.split("_")[0]
             gate_config[short_name] = {
@@ -53,7 +60,8 @@ def main() -> int:
             cfg = gate_config.get(gate_name, {})
             threshold = cfg.get("threshold", float("nan"))
             status = "PASS" if passed else "FAIL"
-            print(f"{gate_name:<6} {cfg.get('metric', '?'):<25} {metric_val:>10.4f} {threshold:>10.4f} {status:>8}")
+            metric_name = cfg.get("metric", "?")
+            print(f"{gate_name:<6} {metric_name:<25} {metric_val:>10.4f} {threshold:>10.4f} {status:>8}")
 
         print(f"\nOverall: {'PASS' if verdict.passed_all else 'FAIL'}")
         store.close()

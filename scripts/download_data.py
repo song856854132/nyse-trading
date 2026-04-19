@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Download OHLCV / fundamental / short-interest data. Production entry point — thin wrapper."""
+
 import argparse
 import sys
 from pathlib import Path
@@ -46,10 +47,17 @@ def _resolve_universe(config_dir: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Download market data via configured adapters")
     parser.add_argument("--config-dir", type=Path, default=Path("config/"), help="Config directory")
-    parser.add_argument("--symbols", nargs="*", default=None, help="Symbols to fetch (default: full universe)")
+    parser.add_argument(
+        "--symbols", nargs="*", default=None, help="Symbols to fetch (default: full universe)"
+    )
     parser.add_argument("--start-date", required=True, help="Start date YYYY-MM-DD")
     parser.add_argument("--end-date", required=True, help="End date YYYY-MM-DD")
-    parser.add_argument("--source", choices=["finmind", "edgar", "finra", "all"], default="all", help="Data source")
+    parser.add_argument(
+        "--source",
+        choices=["finmind", "edgar", "finra", "all"],
+        default="all",
+        help="Data source",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Cap universe size (for smoke tests)")
     args = parser.parse_args()
 
@@ -76,8 +84,11 @@ def main() -> int:
             symbols = args.symbols
         else:
             symbols = _resolve_universe(args.config_dir)
-            print(f"Resolved universe: {len(symbols)} symbols from sp500_current.csv "
-                  f"(survivorship bias — see _resolve_universe docstring)", flush=True)
+            print(
+                f"Resolved universe: {len(symbols)} symbols from sp500_current.csv "
+                f"(survivorship bias — see _resolve_universe docstring)",
+                flush=True,
+            )
         if args.limit:
             symbols = symbols[: args.limit]
             print(f"Applied --limit: {len(symbols)} symbols", flush=True)
@@ -109,6 +120,7 @@ def main() -> int:
                 # Surface a clear diagnostic instead of silently routing to the
                 # wrong table.
                 from nyse_core.contracts import Diagnostics
+
                 d = Diagnostics()
                 d.error(
                     f"download_data.{name}",
@@ -116,6 +128,7 @@ def main() -> int:
                 )
                 return d
             from nyse_core.contracts import Diagnostics
+
             d = Diagnostics()
             d.error(f"download_data.{name}", f"Unknown adapter: {name}")
             return d
@@ -123,7 +136,8 @@ def main() -> int:
         for name, adapter in adapters:
             df, diag = adapter.fetch(symbols, start, end)
             if diag.has_errors:
-                print(f"[{name}] fetch errors: {[m.message for m in diag.messages if m.level.value == 'ERROR']}", file=sys.stderr)
+                errors = [m.message for m in diag.messages if m.level.value == "ERROR"]
+                print(f"[{name}] fetch errors: {errors}", file=sys.stderr)
                 continue
             if df.empty:
                 print(f"[{name}] fetched 0 rows, nothing to store", file=sys.stderr)

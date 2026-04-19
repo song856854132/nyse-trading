@@ -9,12 +9,13 @@ Live mode (future): also reads live.duckdb for per-position forecast/outcome pai
 
 Manual notes in the existing tracker are preserved on regeneration — matched by `id`.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -118,7 +119,7 @@ def _load_gate_outcome(results_dir: Path, factor: str) -> tuple[str, str, str, s
     mtime = date.fromtimestamp(gate_path.stat().st_mtime).isoformat()
 
     if passed:
-        verdict = f"PASS (all G0-G5)"
+        verdict = "PASS (all G0-G5)"
         cal = "HIT"
     elif fails:
         parts = "/".join(sorted(fails))
@@ -149,7 +150,7 @@ def _load_holdout(results_dir: Path) -> tuple[str, str, str, str] | None:
 def _compute_rows(results_dir: Path, prior_notes: dict[str, str]) -> list[Row]:
     rows: list[Row] = []
     for f in _SEED_FORECASTS:
-        r = Row(**f)  # type: ignore[arg-type]
+        r = Row(**f)
         if r.id.startswith("factor-"):
             # id format: factor-<name>-<yyyy>_<yyyy>
             m = re.match(r"factor-(.+)-\d{4}_\d{4}$", r.id)
@@ -193,7 +194,11 @@ def _render(rows: list[Row], generated_on: str) -> str:
     s = _summary(rows)
     resolved = s["HIT"] + s["MISS"]
     brier = (s["MISS"] / resolved) if resolved > 0 else float("nan")
-    brier_line = f"{brier:.2f}  ({s['MISS']} MISS / {resolved} resolved)" if resolved else "n/a  (no resolved predictions)"
+    brier_line = (
+        f"{brier:.2f}  ({s['MISS']} MISS / {resolved} resolved)"
+        if resolved
+        else "n/a  (no resolved predictions)"
+    )
 
     summary_block = (
         "```\n"
@@ -221,11 +226,10 @@ def main() -> int:
     ap.add_argument("--mode", choices=["pre-live", "live"], default="pre-live")
     ap.add_argument("--research-db", type=Path, default=Path("research.duckdb"))
     ap.add_argument("--results-dir", type=Path, default=Path("results"))
+    ap.add_argument("--output", type=Path, default=Path("docs/OUTCOME_VS_FORECAST.md"))
     ap.add_argument(
-        "--output", type=Path, default=Path("docs/OUTCOME_VS_FORECAST.md")
+        "--print-only", action="store_true", help="Print the rendered table to stdout; don't write the file."
     )
-    ap.add_argument("--print-only", action="store_true",
-                    help="Print the rendered table to stdout; don't write the file.")
     args = ap.parse_args()
 
     prior = _parse_existing_notes(args.output)
@@ -238,8 +242,11 @@ def main() -> int:
         return 0
 
     if not args.output.exists():
-        print(f"ERROR: {args.output} does not exist — generator overwrites tables only, "
-              f"not the full file. Create the seed document first.", flush=True)
+        print(
+            f"ERROR: {args.output} does not exist — generator overwrites tables only, "
+            f"not the full file. Create the seed document first.",
+            flush=True,
+        )
         return 1
 
     text = args.output.read_text()
@@ -261,7 +268,7 @@ def main() -> int:
         ci = text.index(cal_start) + len(cal_start)
         cj = text.index(cal_end, ci)
     except ValueError:
-        print(f"ERROR: calibration-summary anchors not found", flush=True)
+        print("ERROR: calibration-summary anchors not found", flush=True)
         return 3
 
     # Split the rendered output into table + summary

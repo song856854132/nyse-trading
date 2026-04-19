@@ -36,6 +36,7 @@ script. Callers that want a permanent anchor should append a research-log
 event whose payload includes `manifest_sha256` — that is the canonical
 tamper-evident pointer.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,10 +46,9 @@ import platform as _platform
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = REPO_ROOT / "research.duckdb"
@@ -149,13 +149,16 @@ def _duckdb_snapshot(db_path: Path) -> dict[str, Any] | None:
     try:
         import duckdb  # local import: dependency is optional for script import
     except ImportError:
-        return {"path": str(db_path), "schema_hash": None, "table_row_counts": None,
-                "error": "duckdb python module not installed"}
+        return {
+            "path": str(db_path),
+            "schema_hash": None,
+            "table_row_counts": None,
+            "error": "duckdb python module not installed",
+        }
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
         rows = conn.execute(
-            "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'main' ORDER BY table_name"
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name"
         ).fetchall()
         table_names = [r[0] for r in rows]
         counts: dict[str, int] = {}
@@ -164,7 +167,7 @@ def _duckdb_snapshot(db_path: Path) -> dict[str, Any] | None:
             cols = conn.execute(
                 "SELECT column_name, data_type "
                 "FROM information_schema.columns "
-                f"WHERE table_schema='main' AND table_name=? "
+                "WHERE table_schema='main' AND table_name=? "
                 "ORDER BY ordinal_position",
                 [tn],
             ).fetchall()
@@ -175,8 +178,7 @@ def _duckdb_snapshot(db_path: Path) -> dict[str, Any] | None:
             "tables": schema_records,
             "counts": counts,
         }
-        fp_bytes = json.dumps(fingerprint, sort_keys=True,
-                              separators=(",", ":")).encode("utf-8")
+        fp_bytes = json.dumps(fingerprint, sort_keys=True, separators=(",", ":")).encode("utf-8")
         try:
             path_repr = str(db_path.relative_to(REPO_ROOT))
         except ValueError:
@@ -220,14 +222,12 @@ def _reproduction_block(run_id: str) -> dict[str, Any]:
             "pre-commit install",
         ],
         "verify_chain_cmd": "python3 scripts/verify_research_log.py",
-        "rerun_command": (
-            f"python3 scripts/run_backtest.py --research-pack results/packs/{run_id}"
-        ),
+        "rerun_command": (f"python3 scripts/run_backtest.py --research-pack results/packs/{run_id}"),
     }
 
 
 def _auto_run_id() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _copy_snapshot_files(pack_dir: Path) -> None:
@@ -257,7 +257,7 @@ def build_pack(
     manifest: dict[str, Any] = {
         "run_id": run_id,
         "run_label": label,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "git": _git_info(),
         "python": _python_info(),
         "platform": _platform_info(),
@@ -270,8 +270,7 @@ def build_pack(
 
     _copy_snapshot_files(pack_dir)
 
-    manifest_bytes = json.dumps(manifest, sort_keys=True,
-                                separators=(",", ":")).encode("utf-8")
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
     manifest["manifest_sha256"] = _sha256_bytes(manifest_bytes)
 
     (pack_dir / "manifest.json").write_text(
@@ -283,16 +282,13 @@ def build_pack(
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Emit a reproducibility research pack.")
-    ap.add_argument("--run-id", default=None,
-                    help="run identifier (default: current UTC timestamp)")
-    ap.add_argument("--label", default=None,
-                    help="optional human-readable label")
-    ap.add_argument("--db-path", default=str(DEFAULT_DB),
-                    help=f"path to research DuckDB (default: {DEFAULT_DB})")
-    ap.add_argument("--log-path", default=str(DEFAULT_LOG),
-                    help="path to research_log.jsonl")
-    ap.add_argument("--packs-dir", default=str(DEFAULT_PACKS_DIR),
-                    help="parent directory for pack output")
+    ap.add_argument("--run-id", default=None, help="run identifier (default: current UTC timestamp)")
+    ap.add_argument("--label", default=None, help="optional human-readable label")
+    ap.add_argument(
+        "--db-path", default=str(DEFAULT_DB), help=f"path to research DuckDB (default: {DEFAULT_DB})"
+    )
+    ap.add_argument("--log-path", default=str(DEFAULT_LOG), help="path to research_log.jsonl")
+    ap.add_argument("--packs-dir", default=str(DEFAULT_PACKS_DIR), help="parent directory for pack output")
     return ap.parse_args(argv)
 
 
@@ -308,8 +304,7 @@ def main(argv: list[str] | None = None) -> int:
             packs_dir=Path(ns.packs_dir),
         )
     except FileExistsError:
-        print(f"ERROR: pack directory already exists: "
-              f"{Path(ns.packs_dir) / run_id}", file=sys.stderr)
+        print(f"ERROR: pack directory already exists: {Path(ns.packs_dir) / run_id}", file=sys.stderr)
         return 2
     print(f"Wrote research pack: {pack_dir}")
     print(f"  manifest: {pack_dir / 'manifest.json'}")

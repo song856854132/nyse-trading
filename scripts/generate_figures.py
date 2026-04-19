@@ -9,6 +9,7 @@ Usage:
     source /tmp/pdf-gen/bin/activate
     python scripts/generate_figures.py
 """
+
 from __future__ import annotations
 
 import json
@@ -17,12 +18,12 @@ from pathlib import Path
 
 # Headless rendering before any other matplotlib import
 import matplotlib
+
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.dates as mdates
-import matplotlib.ticker as mticker
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -33,8 +34,8 @@ from sklearn.linear_model import Ridge
 # ── Project imports ──────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from nyse_core.schema import TRADING_DAYS_PER_YEAR, SMA_WINDOW, BEAR_EXPOSURE, BULL_EXPOSURE
-from nyse_core.metrics import sharpe_ratio, cagr, max_drawdown, information_coefficient, ic_ir
+from nyse_core.metrics import cagr, max_drawdown, sharpe_ratio
+from nyse_core.schema import BEAR_EXPOSURE, BULL_EXPOSURE, SMA_WINDOW
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,20 +56,22 @@ TEAL = "#00695c"
 DPI = 150
 
 plt.style.use("seaborn-v0_8-whitegrid")
-plt.rcParams.update({
-    "figure.facecolor": "white",
-    "axes.facecolor": "white",
-    "axes.edgecolor": "#cccccc",
-    "axes.labelcolor": PRIMARY,
-    "xtick.color": "#555555",
-    "ytick.color": "#555555",
-    "text.color": PRIMARY,
-    "font.size": 10,
-    "axes.titlesize": 13,
-    "axes.labelsize": 11,
-    "legend.fontsize": 9,
-    "figure.titlesize": 14,
-})
+plt.rcParams.update(
+    {
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "axes.edgecolor": "#cccccc",
+        "axes.labelcolor": PRIMARY,
+        "xtick.color": "#555555",
+        "ytick.color": "#555555",
+        "text.color": PRIMARY,
+        "font.size": 10,
+        "axes.titlesize": 13,
+        "axes.labelsize": 11,
+        "legend.fontsize": 9,
+        "figure.titlesize": 14,
+    }
+)
 
 # ── Seed for full reproducibility ────────────────────────────────────────────
 RNG = np.random.default_rng(42)
@@ -76,17 +79,24 @@ RNG = np.random.default_rng(42)
 # ── Factor definitions ───────────────────────────────────────────────────────
 ALL_FACTOR_COLS = [
     # Price/Volume (4)
-    "ivol_20d", "momentum_2_12", "52w_high", "ewmac",
+    "ivol_20d",
+    "momentum_2_12",
+    "52w_high",
+    "ewmac",
     # Fundamental (3)
-    "piotroski", "accruals", "profitability",
+    "piotroski",
+    "accruals",
+    "profitability",
     # Earnings (1)
     "earn_surprise",
     # Short Interest (2)
-    "short_ratio", "days_to_cover",
+    "short_ratio",
+    "days_to_cover",
     # Sentiment (1)
     "options_flow",
     # NLP/Analyst (2)
-    "earnings_sentiment", "analyst_rev",
+    "earnings_sentiment",
+    "analyst_rev",
 ]
 
 FACTOR_FAMILIES = {
@@ -134,8 +144,7 @@ def generate_stock_characteristics(n_stocks: int = N_STOCKS) -> dict:
     }
 
 
-def generate_stock_prices(chars: dict, n_stocks: int = N_STOCKS,
-                          n_days: int = N_DAYS) -> pd.DataFrame:
+def generate_stock_prices(chars: dict, n_stocks: int = N_STOCKS, n_days: int = N_DAYS) -> pd.DataFrame:
     """Generate ~8 years of OHLCV with regime-aware returns and quality signal."""
     dates = generate_trading_dates(n_days)
     quality = chars["quality"]
@@ -147,8 +156,7 @@ def generate_stock_prices(chars: dict, n_stocks: int = N_STOCKS,
         drift_annual = base_drift + 0.015 * quality[i]
         vol = RNG.uniform(0.18, 0.42)
         dt = 1 / 252
-        log_ret = RNG.normal((drift_annual - 0.5 * vol**2) * dt,
-                             vol * np.sqrt(dt), n_days)
+        log_ret = RNG.normal((drift_annual - 0.5 * vol**2) * dt, vol * np.sqrt(dt), n_days)
 
         # Market-wide events injected into all stocks
         # 2020 COVID crash: ~day 504-525 (approx March 2020)
@@ -163,12 +171,16 @@ def generate_stock_prices(chars: dict, n_stocks: int = N_STOCKS,
             log_ret[1008:1134] -= 0.003 * bear_beta
 
         close = p0 * np.exp(np.cumsum(log_ret))
-        frames.append(pd.DataFrame({
-            "date": dates, "symbol": f"SYM_{i:03d}",
-            "close": np.round(close, 2),
-            "volume": (RNG.lognormal(14.5, 0.5, n_days)
-                       * (1 + 5 * np.abs(log_ret))).astype(int),
-        }))
+        frames.append(
+            pd.DataFrame(
+                {
+                    "date": dates,
+                    "symbol": f"SYM_{i:03d}",
+                    "close": np.round(close, 2),
+                    "volume": (RNG.lognormal(14.5, 0.5, n_days) * (1 + 5 * np.abs(log_ret))).astype(int),
+                }
+            )
+        )
     return pd.concat(frames, ignore_index=True)
 
 
@@ -179,17 +191,17 @@ def generate_spy(n_days: int = N_DAYS) -> pd.DataFrame:
 
     # Piecewise annual drift (realistic regime narrative)
     segments = [
-        (126, 0.24),    # 2018 H1: bull
-        (126, -0.12),   # 2018 H2: Q4 correction
-        (252, 0.30),    # 2019: strong bull
-        (42, -0.90),    # 2020 Feb-Mar: COVID crash (~-30% in 6 weeks)
-        (84, 0.80),     # 2020 Apr-Jun: V-recovery
-        (126, 0.25),    # 2020 H2: continued recovery
-        (252, 0.26),    # 2021: bull
-        (126, -0.30),   # 2022 H1: bear (rate hikes)
-        (126, -0.08),   # 2022 H2: continued weakness
-        (252, 0.22),    # 2023: recovery
-        (252, 0.18),    # 2024: moderate bull
+        (126, 0.24),  # 2018 H1: bull
+        (126, -0.12),  # 2018 H2: Q4 correction
+        (252, 0.30),  # 2019: strong bull
+        (42, -0.90),  # 2020 Feb-Mar: COVID crash (~-30% in 6 weeks)
+        (84, 0.80),  # 2020 Apr-Jun: V-recovery
+        (126, 0.25),  # 2020 H2: continued recovery
+        (252, 0.26),  # 2021: bull
+        (126, -0.30),  # 2022 H1: bear (rate hikes)
+        (126, -0.08),  # 2022 H2: continued weakness
+        (252, 0.22),  # 2023: recovery
+        (252, 0.18),  # 2024: moderate bull
     ]
 
     drift = np.zeros(n)
@@ -198,7 +210,7 @@ def generate_spy(n_days: int = N_DAYS) -> pd.DataFrame:
         actual = min(seg_days, n - pos)
         if actual <= 0:
             break
-        drift[pos:pos + actual] = annual_ret / 252
+        drift[pos : pos + actual] = annual_ret / 252
         pos += actual
     if pos < n:
         drift[pos:] = 0.12 / 252  # 2025: moderate
@@ -212,10 +224,10 @@ def generate_spy(n_days: int = N_DAYS) -> pd.DataFrame:
 # 2. FACTOR COMPUTATION (13 factors across 6 families)
 # ============================================================================
 
+
 def compute_price_factors(prices: pd.DataFrame, rebal_dates) -> pd.DataFrame:
     """Vectorized computation of 4 price-based factors per rebalance date."""
-    close_wide = prices.pivot(index="date", columns="symbol",
-                              values="close").sort_index()
+    close_wide = prices.pivot(index="date", columns="symbol", values="close").sort_index()
     all_idx = close_wide.index
     records = []
 
@@ -224,10 +236,10 @@ def compute_price_factors(prices: pd.DataFrame, rebal_dates) -> pd.DataFrame:
         if dt_loc < 252:
             continue
 
-        window = close_wide.iloc[dt_loc - 252:dt_loc + 1]
+        window = close_wide.iloc[dt_loc - 252 : dt_loc + 1]
 
         # IVOL: std of last 20 daily log returns
-        last_21 = close_wide.iloc[dt_loc - 20:dt_loc + 1]
+        last_21 = close_wide.iloc[dt_loc - 20 : dt_loc + 1]
         log_rets = np.log(last_21).diff().iloc[1:]
         ivol = log_rets.std(ddof=1)
 
@@ -246,14 +258,16 @@ def compute_price_factors(prices: pd.DataFrame, rebal_dates) -> pd.DataFrame:
         ewmac = (ema_s / ema_l) - 1
         ewmac[ema_l == 0] = np.nan
 
-        df = pd.DataFrame({
-            "date": dt,
-            "symbol": close_wide.columns,
-            "ivol_20d": ivol.values,
-            "momentum_2_12": mom.values,
-            "52w_high": high52.values,
-            "ewmac": ewmac.values,
-        })
+        df = pd.DataFrame(
+            {
+                "date": dt,
+                "symbol": close_wide.columns,
+                "ivol_20d": ivol.values,
+                "momentum_2_12": mom.values,
+                "52w_high": high52.values,
+                "ewmac": ewmac.values,
+            }
+        )
         records.append(df)
 
     return pd.concat(records, ignore_index=True)
@@ -268,15 +282,11 @@ def generate_synthetic_factors(rebal_dates, symbols, chars: dict) -> pd.DataFram
     sentiment = chars["sentiment"]
 
     # Pre-allocate arrays: (n_dates, n_sym)
-    piotroski = np.clip(np.round(
-        4.5 + 1.5 * quality[None, :] + RNG.standard_normal((n_dates, n_sym))
-    ), 0, 9)
+    piotroski = np.clip(np.round(4.5 + 1.5 * quality[None, :] + RNG.standard_normal((n_dates, n_sym))), 0, 9)
 
-    accruals = (-0.02 * quality[None, :]
-                + RNG.normal(0, 0.04, (n_dates, n_sym)))
+    accruals = -0.02 * quality[None, :] + RNG.normal(0, 0.04, (n_dates, n_sym))
 
-    profitability = (0.12 + 0.06 * quality[None, :]
-                     + RNG.normal(0, 0.03, (n_dates, n_sym)))
+    profitability = 0.12 + 0.06 * quality[None, :] + RNG.normal(0, 0.03, (n_dates, n_sym))
 
     # Earnings surprise: mostly near zero, quarterly spikes
     earn_base = RNG.normal(0, 0.005, (n_dates, n_sym))
@@ -286,41 +296,38 @@ def generate_synthetic_factors(rebal_dates, symbols, chars: dict) -> pd.DataFram
         quarterly_mask[q, RNG.random(n_sym) < 0.3] = True
     earn_surprise = np.where(quarterly_mask, earn_spike, earn_base)
 
-    short_ratio = np.clip(np.exp(
-        1.0 + 0.3 * risk[None, :] + RNG.normal(0, 0.3, (n_dates, n_sym))
-    ), 0.1, 30)
+    short_ratio = np.clip(np.exp(1.0 + 0.3 * risk[None, :] + RNG.normal(0, 0.3, (n_dates, n_sym))), 0.1, 30)
 
-    days_to_cover = np.clip(
-        short_ratio * RNG.uniform(0.8, 2.5, (n_dates, n_sym)), 0.5, 40
-    )
+    days_to_cover = np.clip(short_ratio * RNG.uniform(0.8, 2.5, (n_dates, n_sym)), 0.5, 40)
 
-    options_flow = (0.7 + 0.1 * sentiment[None, :]
-                    + RNG.normal(0, 0.15, (n_dates, n_sym)))
+    options_flow = 0.7 + 0.1 * sentiment[None, :] + RNG.normal(0, 0.15, (n_dates, n_sym))
 
     earnings_sentiment = np.clip(
         0.5 + 0.1 * quality[None, :] + RNG.normal(0, 0.12, (n_dates, n_sym)),
-        0, 1,
+        0,
+        1,
     )
 
-    analyst_rev = (0.005 * sentiment[None, :]
-                   + RNG.normal(0, 0.015, (n_dates, n_sym)))
+    analyst_rev = 0.005 * sentiment[None, :] + RNG.normal(0, 0.015, (n_dates, n_sym))
 
     # Build DataFrame
     records = []
     for di, dt in enumerate(rebal_dates):
-        df = pd.DataFrame({
-            "date": dt,
-            "symbol": symbols,
-            "piotroski": piotroski[di],
-            "accruals": accruals[di],
-            "profitability": profitability[di],
-            "earn_surprise": earn_surprise[di],
-            "short_ratio": short_ratio[di],
-            "days_to_cover": days_to_cover[di],
-            "options_flow": options_flow[di],
-            "earnings_sentiment": earnings_sentiment[di],
-            "analyst_rev": analyst_rev[di],
-        })
+        df = pd.DataFrame(
+            {
+                "date": dt,
+                "symbol": symbols,
+                "piotroski": piotroski[di],
+                "accruals": accruals[di],
+                "profitability": profitability[di],
+                "earn_surprise": earn_surprise[di],
+                "short_ratio": short_ratio[di],
+                "days_to_cover": days_to_cover[di],
+                "options_flow": options_flow[di],
+                "earnings_sentiment": earnings_sentiment[di],
+                "analyst_rev": analyst_rev[di],
+            }
+        )
         records.append(df)
     return pd.concat(records, ignore_index=True)
 
@@ -331,9 +338,11 @@ def compute_all_factors(prices: pd.DataFrame, chars: dict) -> pd.DataFrame:
     dates_all = sorted(prices["date"].unique())
     rebal_dates = dates_all[252::5]  # Weekly rebalance after 1-year warmup
 
-    print(f"  Rebalance dates: {len(rebal_dates)} "
-          f"({pd.Timestamp(rebal_dates[0]).strftime('%Y-%m')} to "
-          f"{pd.Timestamp(rebal_dates[-1]).strftime('%Y-%m')})")
+    print(
+        f"  Rebalance dates: {len(rebal_dates)} "
+        f"({pd.Timestamp(rebal_dates[0]).strftime('%Y-%m')} to "
+        f"{pd.Timestamp(rebal_dates[-1]).strftime('%Y-%m')})"
+    )
 
     price_df = compute_price_factors(prices, rebal_dates)
     synth_df = generate_synthetic_factors(rebal_dates, symbols, chars)
@@ -347,6 +356,7 @@ def compute_all_factors(prices: pd.DataFrame, chars: dict) -> pd.DataFrame:
 # 3. WALK-FORWARD BACKTEST (13-factor Ridge, 6-7 expanding folds)
 # ============================================================================
 
+
 def rank_percentile_col(s: pd.Series) -> pd.Series:
     """Map a series to [0,1] via rank-percentile."""
     valid = s.dropna()
@@ -356,8 +366,7 @@ def rank_percentile_col(s: pd.Series) -> pd.Series:
     return ((ranks - 1) / (len(valid) - 1)).reindex(s.index)
 
 
-def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
-                 spy: pd.DataFrame):
+def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame, spy: pd.DataFrame):
     """Walk-forward Ridge backtest with 13 factors, returning all chart data."""
     factor_cols = [c for c in ALL_FACTOR_COLS if c in factors_df.columns]
     rebal_dates = sorted(factors_df["date"].unique())
@@ -373,8 +382,8 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
         idx = date_idx.get(dt)
         if idx is None or idx + 5 >= len(all_dates):
             continue
-        exec_dt = all_dates[idx + 1]   # T+1: execution day (Monday)
-        fwd_dt = all_dates[idx + 5]    # T+5: exit day (Friday)
+        exec_dt = all_dates[idx + 1]  # T+1: execution day (Monday)
+        fwd_dt = all_dates[idx + 5]  # T+5: exit day (Friday)
         for sym in factors_df[factors_df["date"] == dt]["symbol"].unique():
             try:
                 p_exec = price_lookup.loc[(exec_dt, sym)]
@@ -384,9 +393,7 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
                 pass
 
     factors_df = factors_df.copy()
-    factors_df["fwd_ret"] = factors_df.apply(
-        lambda r: fwd_map.get((r["date"], r["symbol"]), np.nan), axis=1
-    )
+    factors_df["fwd_ret"] = factors_df.apply(lambda r: fwd_map.get((r["date"], r["symbol"]), np.nan), axis=1)
     factors_df = factors_df.dropna(subset=["fwd_ret"])
 
     # Normalize: rank-percentile per date (invert sign for INVERTED factors)
@@ -402,8 +409,8 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
 
     # Walk-forward: expanding window
     n_dates = len(rebal_dates)
-    fold_size = max(1, n_dates // 9)        # ~9 rebal periods per fold
-    min_train = max(12, n_dates // 5)       # at least ~2 years train
+    fold_size = max(1, n_dates // 9)  # ~9 rebal periods per fold
+    min_train = max(12, n_dates // 5)  # at least ~2 years train
 
     per_fold_sharpe = []
     all_oos_returns = []
@@ -424,22 +431,19 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
         if len(test_dates) == 0:
             continue
 
-        fold_boundaries.append(
-            (train_dates[0], train_dates[-1], test_dates[0], test_dates[-1])
-        )
+        fold_boundaries.append((train_dates[0], train_dates[-1], test_dates[0], test_dates[-1]))
 
         train_data = factors_df[factors_df["date"].isin(train_dates)]
         test_data = factors_df[factors_df["date"].isin(test_dates)]
 
         X_train = train_data[factor_cols].values
         y_train = train_data["fwd_ret"].values
-        X_test = test_data[factor_cols].values
 
         model = Ridge(alpha=1.0)
         model.fit(X_train, y_train)
 
         # Store model weights from last (most recent) fold
-        model_weights = dict(zip(factor_cols, model.coef_.tolist()))
+        model_weights = dict(zip(factor_cols, model.coef_.tolist(), strict=False))
 
         # Equal-weight top-N allocation per rebalance date
         fold_daily_ret = []
@@ -461,18 +465,14 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
             # Regime overlay
             spy_dt_close = spy_s.get(tdt)
             spy_dt_sma = spy_sma200.get(tdt)
-            if (spy_dt_close is not None and spy_dt_sma is not None
-                    and not np.isnan(spy_dt_sma)):
-                regime_mult = (BULL_EXPOSURE if spy_dt_close > spy_dt_sma
-                               else BEAR_EXPOSURE)
+            if spy_dt_close is not None and spy_dt_sma is not None and not np.isnan(spy_dt_sma):
+                regime_mult = BULL_EXPOSURE if spy_dt_close > spy_dt_sma else BEAR_EXPOSURE
             else:
                 regime_mult = BULL_EXPOSURE
             port_ret *= regime_mult
 
             # IC
-            ic_val = float(sp_stats.spearmanr(
-                day_preds, day_data["fwd_ret"].values
-            )[0])
+            ic_val = float(sp_stats.spearmanr(day_preds, day_data["fwd_ret"].values)[0])
             ic_series_vals.append(ic_val)
             ic_dates.append(tdt)
 
@@ -481,8 +481,7 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
             all_oos_dates.append(tdt)
 
         fold_ret_s = pd.Series(fold_daily_ret)
-        fold_sharpe = (sharpe_ratio(fold_ret_s)[0] if len(fold_ret_s) > 2
-                       else 0.0)
+        fold_sharpe = sharpe_ratio(fold_ret_s)[0] if len(fold_ret_s) > 2 else 0.0
         per_fold_sharpe.append(fold_sharpe)
 
     # Reverse (folds computed from end backwards)
@@ -503,9 +502,7 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
     all_trade_dates = generate_trading_dates(N_DAYS)
     oos_start = rebal_ret.index[0]
     oos_end = rebal_ret.index[-1]
-    oos_daily_dates = all_trade_dates[
-        (all_trade_dates >= oos_start) & (all_trade_dates <= oos_end)
-    ]
+    oos_daily_dates = all_trade_dates[(all_trade_dates >= oos_start) & (all_trade_dates <= oos_end)]
 
     daily_returns = []
     daily_dates = []
@@ -513,29 +510,23 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
         period_start = rebal_ret.index[i]
         if i + 1 < len(rebal_ret):
             period_end = rebal_ret.index[i + 1]
-            mask = ((oos_daily_dates >= period_start)
-                    & (oos_daily_dates < period_end))
+            mask = (oos_daily_dates >= period_start) & (oos_daily_dates < period_end)
         else:
-            mask = ((oos_daily_dates >= period_start)
-                    & (oos_daily_dates <= oos_end))
+            mask = (oos_daily_dates >= period_start) & (oos_daily_dates <= oos_end)
         day_dates = oos_daily_dates[mask]
         days_in_period = len(day_dates)
         if days_in_period == 0:
             continue
         period_ret = rebal_ret.iloc[i]
         rng_local = np.random.default_rng(42 + i)
-        noise = rng_local.normal(0, abs(period_ret) * 0.3 + 0.001,
-                                 days_in_period)
-        daily_ret_chunk = (np.full(days_in_period, period_ret / days_in_period)
-                           + noise)
+        noise = rng_local.normal(0, abs(period_ret) * 0.3 + 0.001, days_in_period)
+        daily_ret_chunk = np.full(days_in_period, period_ret / days_in_period) + noise
         adj = (period_ret - daily_ret_chunk.sum()) / days_in_period
         daily_ret_chunk += adj
         daily_returns.extend(daily_ret_chunk.tolist())
         daily_dates.extend(day_dates.tolist())
 
-    daily_ret = pd.Series(
-        daily_returns, index=pd.DatetimeIndex(daily_dates)
-    ).sort_index()
+    daily_ret = pd.Series(daily_returns, index=pd.DatetimeIndex(daily_dates)).sort_index()
 
     # Factor correlation (on all normalized data)
     all_factor_data = factors_df[factor_cols].dropna()
@@ -548,9 +539,7 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
     spy_aligned = spy_daily.reindex(daily_ret.index).fillna(0)
 
     spy_sma200_ts = spy_sma200.copy()
-    spy_sma200_ts.index = pd.DatetimeIndex(
-        [pd.Timestamp(d) for d in spy_sma200_ts.index]
-    )
+    spy_sma200_ts.index = pd.DatetimeIndex([pd.Timestamp(d) for d in spy_sma200_ts.index])
 
     # Regime mask on daily dates
     regime_mask = pd.Series(index=daily_ret.index, dtype=str)
@@ -567,8 +556,9 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
     avg_trades_per_period = 20
     n_rebalances = len(rebal_ret)
     n_daily = len(daily_ret)
-    total_cost_pct = (cost_per_trade_bps / 10000 * avg_trades_per_period
-                      * n_rebalances / max(n_daily / 252, 1e-9))
+    total_cost_pct = (
+        cost_per_trade_bps / 10000 * avg_trades_per_period * n_rebalances / max(n_daily / 252, 1e-9)
+    )
 
     return {
         "daily_ret": daily_ret,
@@ -591,6 +581,7 @@ def run_backtest(factors_df: pd.DataFrame, prices: pd.DataFrame,
 # 4. CHART GENERATORS
 # ============================================================================
 
+
 def _save(fig: plt.Figure, name: str) -> None:
     fig.savefig(FIG_DIR / name, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -612,8 +603,7 @@ def _shade_bear_regimes(ax, regime: pd.Series) -> None:
             ax.axvspan(start, dt, color="#ffcccc", alpha=0.25, zorder=0)
             in_bear = False
     if in_bear and start is not None:
-        ax.axvspan(start, bear_mask.index[-1], color="#ffcccc", alpha=0.25,
-                   zorder=0)
+        ax.axvspan(start, bear_mask.index[-1], color="#ffcccc", alpha=0.25, zorder=0)
 
 
 def chart_equity_curve(data: dict) -> None:
@@ -627,30 +617,40 @@ def chart_equity_curve(data: dict) -> None:
     dd = cum_strat / cum_strat.cummax() - 1
 
     fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(14, 8),
+        2,
+        1,
+        figsize=(14, 8),
         gridspec_kw={"height_ratios": [2.5, 1]},
         sharex=True,
     )
 
     # ── Top panel: cumulative returns ──
     _shade_bear_regimes(ax1, regime)
-    ax1.plot(cum_strat.index, cum_strat.values, color=PRIMARY, lw=2,
-             label="NYSE Alpha Strategy")
-    ax1.plot(cum_spy.index, cum_spy.values, color="#888888", lw=1.5, ls="--",
-             label="SPY Benchmark")
+    ax1.plot(cum_strat.index, cum_strat.values, color=PRIMARY, lw=2, label="NYSE Alpha Strategy")
+    ax1.plot(cum_spy.index, cum_spy.values, color="#888888", lw=1.5, ls="--", label="SPY Benchmark")
 
     # Annotate final values
     strat_final = cum_strat.iloc[-1]
     spy_final = cum_spy.iloc[-1]
-    ax1.annotate(f"${strat_final:.2f}", xy=(cum_strat.index[-1], strat_final),
-                 fontsize=9, fontweight="bold", color=PRIMARY,
-                 xytext=(5, 5), textcoords="offset points")
-    ax1.annotate(f"${spy_final:.2f}", xy=(cum_spy.index[-1], spy_final),
-                 fontsize=9, color="#888888",
-                 xytext=(5, -12), textcoords="offset points")
+    ax1.annotate(
+        f"${strat_final:.2f}",
+        xy=(cum_strat.index[-1], strat_final),
+        fontsize=9,
+        fontweight="bold",
+        color=PRIMARY,
+        xytext=(5, 5),
+        textcoords="offset points",
+    )
+    ax1.annotate(
+        f"${spy_final:.2f}",
+        xy=(cum_spy.index[-1], spy_final),
+        fontsize=9,
+        color="#888888",
+        xytext=(5, -12),
+        textcoords="offset points",
+    )
 
-    ax1.set_title("Cumulative Returns: Strategy vs. SPY Benchmark",
-                  fontweight="bold", fontsize=14)
+    ax1.set_title("Cumulative Returns: Strategy vs. SPY Benchmark", fontweight="bold", fontsize=14)
     ax1.set_ylabel("Growth of $1")
     bear_patch = Patch(facecolor="#ffcccc", alpha=0.4, label="Bear Regime")
     handles, labels = ax1.get_legend_handles_labels()
@@ -662,8 +662,7 @@ def chart_equity_curve(data: dict) -> None:
     # ── Bottom panel: drawdown depth ──
     _shade_bear_regimes(ax2, regime)
     dd_pct = dd * 100
-    ax2.fill_between(dd_pct.index, dd_pct.values, 0,
-                     color=RED, alpha=0.35, step="mid")
+    ax2.fill_between(dd_pct.index, dd_pct.values, 0, color=RED, alpha=0.35, step="mid")
     ax2.plot(dd_pct.index, dd_pct.values, color=RED, lw=0.7, alpha=0.8)
     ax2.axhline(0, color="#333333", lw=0.5)
 
@@ -673,8 +672,11 @@ def chart_equity_curve(data: dict) -> None:
     ax2.annotate(
         f"Max DD: {max_dd_val:.1f}%",
         xy=(max_dd_idx, max_dd_val),
-        xytext=(30, -15), textcoords="offset points",
-        fontsize=9, fontweight="bold", color=RED,
+        xytext=(30, -15),
+        textcoords="offset points",
+        fontsize=9,
+        fontweight="bold",
+        color=RED,
         arrowprops=dict(arrowstyle="->", color=RED, lw=1.2),
     )
 
@@ -697,9 +699,7 @@ def chart_underwater(data: dict) -> None:
     fig, ax = plt.subplots(figsize=(14, 4.5))
     dd_vals = dd.values
     norm = mcolors.Normalize(vmin=min(dd_vals.min(), -1), vmax=0)
-    cmap = mcolors.LinearSegmentedColormap.from_list(
-        "dd", ["#c62828", "#ff8f00", "#ffd54f"]
-    )
+    cmap = mcolors.LinearSegmentedColormap.from_list("dd", ["#c62828", "#ff8f00", "#ffd54f"])
     colors = cmap(norm(dd_vals))
 
     ax.bar(dd.index, dd_vals, color=colors, width=2, edgecolor="none")
@@ -722,24 +722,34 @@ def chart_monthly_heatmap(data: dict) -> None:
     if not isinstance(ret.index, pd.DatetimeIndex):
         ret.index = pd.DatetimeIndex(ret.index)
     monthly = ret.resample("ME").apply(lambda x: (1 + x).prod() - 1) * 100
-    pivot = pd.DataFrame({
-        "year": monthly.index.year,
-        "month": monthly.index.month,
-        "ret": monthly.values,
-    })
+    pivot = pd.DataFrame(
+        {
+            "year": monthly.index.year,
+            "month": monthly.index.month,
+            "ret": monthly.values,
+        }
+    )
     table = pivot.pivot(index="year", columns="month", values="ret")
-    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     table.columns = [month_names[m - 1] for m in table.columns]
 
     fig, ax = plt.subplots(figsize=(14, 5))
     valid_vals = table.values[~np.isnan(table.values)]
     vmax = max(abs(valid_vals.max()), abs(valid_vals.min()), 3)
-    sns.heatmap(table, annot=True, fmt=".1f", center=0,
-                cmap=sns.diverging_palette(10, 150, as_cmap=True),
-                vmin=-vmax, vmax=vmax, linewidths=0.5, linecolor="#dddddd",
-                cbar_kws={"label": "Return (%)"}, ax=ax,
-                annot_kws={"size": 9})
+    sns.heatmap(
+        table,
+        annot=True,
+        fmt=".1f",
+        center=0,
+        cmap=sns.diverging_palette(10, 150, as_cmap=True),
+        vmin=-vmax,
+        vmax=vmax,
+        linewidths=0.5,
+        linecolor="#dddddd",
+        cbar_kws={"label": "Return (%)"},
+        ax=ax,
+        annot_kws={"size": 9},
+    )
     ax.set_title("Monthly Returns Heatmap (%)", fontweight="bold")
     ax.set_ylabel("")
     ax.set_xlabel("")
@@ -762,24 +772,22 @@ def chart_rolling_metrics(data: dict) -> None:
     axes[0].plot(roll_sharpe.index, roll_sharpe.values, color=PRIMARY, lw=1.5)
     axes[0].axhline(0, color="#cccccc", lw=0.8, ls="--")
     mean_sharpe = roll_sharpe.mean()
-    axes[0].axhline(mean_sharpe, color=GOLD, lw=1, ls=":",
-                    label=f"Mean = {mean_sharpe:.2f}")
-    axes[0].fill_between(roll_sharpe.index, 0, roll_sharpe.values,
-                         where=roll_sharpe > 0, color=GREEN, alpha=0.12)
-    axes[0].fill_between(roll_sharpe.index, 0, roll_sharpe.values,
-                         where=roll_sharpe < 0, color=RED, alpha=0.12)
+    axes[0].axhline(mean_sharpe, color=GOLD, lw=1, ls=":", label=f"Mean = {mean_sharpe:.2f}")
+    axes[0].fill_between(
+        roll_sharpe.index, 0, roll_sharpe.values, where=roll_sharpe > 0, color=GREEN, alpha=0.12
+    )
+    axes[0].fill_between(
+        roll_sharpe.index, 0, roll_sharpe.values, where=roll_sharpe < 0, color=RED, alpha=0.12
+    )
     axes[0].set_title(f"Rolling {window}-Day Sharpe Ratio", fontweight="bold")
     axes[0].set_ylabel("Sharpe")
     axes[0].legend(loc="upper right", frameon=True)
 
     axes[1].plot(roll_vol.index, roll_vol.values, color=SECONDARY, lw=1.5)
     mean_vol = roll_vol.mean()
-    axes[1].axhline(mean_vol, color=GOLD, lw=1, ls=":",
-                    label=f"Mean = {mean_vol:.1f}%")
-    axes[1].fill_between(roll_vol.index, roll_vol.values,
-                         alpha=0.12, color=SECONDARY)
-    axes[1].set_title(f"Rolling {window}-Day Annualized Volatility",
-                      fontweight="bold")
+    axes[1].axhline(mean_vol, color=GOLD, lw=1, ls=":", label=f"Mean = {mean_vol:.1f}%")
+    axes[1].fill_between(roll_vol.index, roll_vol.values, alpha=0.12, color=SECONDARY)
+    axes[1].set_title(f"Rolling {window}-Day Annualized Volatility", fontweight="bold")
     axes[1].set_ylabel("Volatility (%)")
     axes[1].legend(loc="upper right", frameon=True)
     axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -805,22 +813,26 @@ def chart_factor_coefficients(data: dict) -> None:
 
     fig, ax = plt.subplots(figsize=(10, max(6, len(names) * 0.45 + 1)))
     y_pos = np.arange(len(names))
-    bars = ax.barh(y_pos, vals, color=bar_colors, height=0.55,
-                   edgecolor="white", linewidth=0.5)
+    bars = ax.barh(y_pos, vals, color=bar_colors, height=0.55, edgecolor="white", linewidth=0.5)
     ax.set_yticks(y_pos)
     ax.set_yticklabels(names, fontsize=9)
     ax.axvline(0, color="#333333", lw=0.8)
-    ax.set_title("Ridge Model Factor Coefficients by Family",
-                 fontweight="bold", fontsize=13)
+    ax.set_title("Ridge Model Factor Coefficients by Family", fontweight="bold", fontsize=13)
     ax.set_xlabel("Coefficient Value")
 
     # Value annotations
     max_abs = max(abs(v) for v in vals) if vals else 1
-    for i, (v, bar) in enumerate(zip(vals, bars)):
+    for i, (v, _bar) in enumerate(zip(vals, bars, strict=False)):
         offset = max_abs * 0.04
-        ax.text(v + offset * (1 if v >= 0 else -1), i, f"{v:.4f}",
-                va="center", ha="left" if v >= 0 else "right",
-                fontsize=8, color=PRIMARY)
+        ax.text(
+            v + offset * (1 if v >= 0 else -1),
+            i,
+            f"{v:.4f}",
+            va="center",
+            ha="left" if v >= 0 else "right",
+            fontsize=8,
+            color=PRIMARY,
+        )
 
     # Family legend
     seen = set()
@@ -829,8 +841,7 @@ def chart_factor_coefficients(data: dict) -> None:
         if fam not in seen and any(fl == fam for fl in family_labels):
             legend_patches.append(Patch(color=col, label=fam))
             seen.add(fam)
-    ax.legend(handles=legend_patches, loc="lower right", fontsize=8,
-              frameon=True, fancybox=True)
+    ax.legend(handles=legend_patches, loc="lower right", fontsize=8, frameon=True, fancybox=True)
 
     # Separator lines between families
     prev_fam = None
@@ -843,10 +854,12 @@ def chart_factor_coefficients(data: dict) -> None:
         "Sign convention: all factors oriented HIGH = BUY.\n"
         "Inverted factors (IVOL, accruals, short interest)\n"
         "are sign-flipped before rank-percentile normalization.",
-        xy=(0.02, 0.02), xycoords="axes fraction", fontsize=7.5,
-        style="italic", color="#555555",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor=BG_ACCENT,
-                  edgecolor="#cccccc"),
+        xy=(0.02, 0.02),
+        xycoords="axes fraction",
+        fontsize=7.5,
+        style="italic",
+        color="#555555",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor=BG_ACCENT, edgecolor="#cccccc"),
     )
     fig.tight_layout()
     _save(fig, "factor_coefficients.png")
@@ -862,39 +875,36 @@ def chart_ic_analysis(data: dict) -> None:
     fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 
     # Panel 1: IC time series
-    axes[0].bar(ic.index, ic.values, width=8,
-                color=np.where(ic.values >= 0, ACCENT, RED), alpha=0.7)
-    axes[0].axhline(mean_ic, color=GOLD, lw=1.5, ls="--",
-                    label=f"Mean IC = {mean_ic:.3f}")
-    axes[0].set_title("Information Coefficient (IC) Over Time",
-                      fontweight="bold")
+    axes[0].bar(ic.index, ic.values, width=8, color=np.where(ic.values >= 0, ACCENT, RED), alpha=0.7)
+    axes[0].axhline(mean_ic, color=GOLD, lw=1.5, ls="--", label=f"Mean IC = {mean_ic:.3f}")
+    axes[0].set_title("Information Coefficient (IC) Over Time", fontweight="bold")
     axes[0].set_ylabel("Spearman IC")
     axes[0].legend(loc="upper right", frameon=True)
     axes[0].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     axes[0].xaxis.set_major_locator(mdates.YearLocator())
 
     # Panel 2: IC histogram
-    axes[1].hist(ic.values, bins=35, color=SECONDARY, alpha=0.75,
-                 edgecolor="white")
+    axes[1].hist(ic.values, bins=35, color=SECONDARY, alpha=0.75, edgecolor="white")
     axes[1].axvline(mean_ic, color=GOLD, lw=2, ls="--")
     axes[1].set_title("IC Distribution", fontweight="bold")
     axes[1].set_xlabel("IC")
     axes[1].set_ylabel("Frequency")
-    stats_text = (f"Mean = {mean_ic:.4f}\n"
-                  f"Std  = {std_ic:.4f}\n"
-                  f"IC IR = {ic_ir_val:.3f}")
+    stats_text = f"Mean = {mean_ic:.4f}\nStd  = {std_ic:.4f}\nIC IR = {ic_ir_val:.3f}"
     axes[1].annotate(
-        stats_text, xy=(0.97, 0.95), xycoords="axes fraction",
-        ha="right", va="top", fontsize=9, family="monospace",
-        bbox=dict(boxstyle="round,pad=0.4", facecolor=BG_ACCENT,
-                  edgecolor="#cccccc"),
+        stats_text,
+        xy=(0.97, 0.95),
+        xycoords="axes fraction",
+        ha="right",
+        va="top",
+        fontsize=9,
+        family="monospace",
+        bbox=dict(boxstyle="round,pad=0.4", facecolor=BG_ACCENT, edgecolor="#cccccc"),
     )
 
     # Panel 3: Cumulative IC
     cum_ic = ic.cumsum()
     axes[2].plot(cum_ic.index, cum_ic.values, color=PRIMARY, lw=2)
-    axes[2].fill_between(cum_ic.index, 0, cum_ic.values, alpha=0.1,
-                         color=PRIMARY)
+    axes[2].fill_between(cum_ic.index, 0, cum_ic.values, alpha=0.1, color=PRIMARY)
     axes[2].set_title("Cumulative IC", fontweight="bold")
     axes[2].set_ylabel("Cumulative IC")
     axes[2].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -916,11 +926,9 @@ def chart_return_distribution(data: dict) -> None:
     vals = ret.values
     mu, sigma = vals.mean(), vals.std(ddof=1)
     n_bins = min(60, max(20, n_obs // 10))
-    axes[0].hist(vals, bins=n_bins, density=True, color=SECONDARY, alpha=0.7,
-                 edgecolor="white")
+    axes[0].hist(vals, bins=n_bins, density=True, color=SECONDARY, alpha=0.7, edgecolor="white")
     x_range = np.linspace(mu - 4 * sigma, mu + 4 * sigma, 200)
-    axes[0].plot(x_range, sp_stats.norm.pdf(x_range, mu, sigma),
-                 color=RED, lw=2, label="Normal Fit")
+    axes[0].plot(x_range, sp_stats.norm.pdf(x_range, mu, sigma), color=RED, lw=2, label="Normal Fit")
     axes[0].set_title("Return Distribution", fontweight="bold")
     axes[0].set_xlabel("Daily Return")
     axes[0].set_ylabel("Density")
@@ -928,15 +936,21 @@ def chart_return_distribution(data: dict) -> None:
     kurt = float(sp_stats.kurtosis(vals))
     ann_ret = float((1 + mu) ** 252 - 1) * 100
     ann_vol = sigma * np.sqrt(252) * 100
-    stats_text = (f"Mean    = {ann_ret:.1f}% ann.\n"
-                  f"Vol     = {ann_vol:.1f}% ann.\n"
-                  f"Skew    = {skew:.3f}\n"
-                  f"Kurtosis = {kurt:.3f}")
+    stats_text = (
+        f"Mean    = {ann_ret:.1f}% ann.\n"
+        f"Vol     = {ann_vol:.1f}% ann.\n"
+        f"Skew    = {skew:.3f}\n"
+        f"Kurtosis = {kurt:.3f}"
+    )
     axes[0].annotate(
-        stats_text, xy=(0.97, 0.95), xycoords="axes fraction",
-        ha="right", va="top", fontsize=9, family="monospace",
-        bbox=dict(boxstyle="round,pad=0.4", facecolor=BG_ACCENT,
-                  edgecolor="#cccccc"),
+        stats_text,
+        xy=(0.97, 0.95),
+        xycoords="axes fraction",
+        ha="right",
+        va="top",
+        fontsize=9,
+        family="monospace",
+        bbox=dict(boxstyle="round,pad=0.4", facecolor=BG_ACCENT, edgecolor="#cccccc"),
     )
     axes[0].legend(loc="upper left", frameon=True)
 
@@ -948,10 +962,12 @@ def chart_return_distribution(data: dict) -> None:
     roll_sharpe = (roll_mean / roll_std * np.sqrt(252)).dropna()
     axes[1].plot(roll_sharpe.index, roll_sharpe.values, color=PRIMARY, lw=1.5)
     axes[1].axhline(0, color="#cccccc", lw=0.8, ls="--")
-    axes[1].fill_between(roll_sharpe.index, 0, roll_sharpe.values,
-                         where=roll_sharpe > 0, color=GREEN, alpha=0.12)
-    axes[1].fill_between(roll_sharpe.index, 0, roll_sharpe.values,
-                         where=roll_sharpe < 0, color=RED, alpha=0.12)
+    axes[1].fill_between(
+        roll_sharpe.index, 0, roll_sharpe.values, where=roll_sharpe > 0, color=GREEN, alpha=0.12
+    )
+    axes[1].fill_between(
+        roll_sharpe.index, 0, roll_sharpe.values, where=roll_sharpe < 0, color=RED, alpha=0.12
+    )
     axes[1].set_title(f"Rolling {roll_w}-Day Sharpe Ratio", fontweight="bold")
     axes[1].set_ylabel("Sharpe")
     axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -976,38 +992,54 @@ def chart_cost_breakdown(data: dict) -> None:
     vals = [spread_bps, commission_bps, slippage_bps, total_bps]
     bar_colors = [SECONDARY, ACCENT, "#6699cc", PRIMARY]
 
-    bars = axes[0].bar(categories, vals, color=bar_colors, width=0.5,
-                       edgecolor="white", linewidth=0.5)
-    for bar, v in zip(bars, vals):
-        axes[0].text(bar.get_x() + bar.get_width() / 2,
-                     bar.get_height() + 0.15,
-                     f"{v:.1f} bps", ha="center", va="bottom",
-                     fontsize=10, fontweight="bold", color=PRIMARY)
-    axes[0].set_title("Transaction Cost Components (Roundtrip)",
-                      fontweight="bold")
+    bars = axes[0].bar(categories, vals, color=bar_colors, width=0.5, edgecolor="white", linewidth=0.5)
+    for bar, v in zip(bars, vals, strict=False):
+        axes[0].text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.15,
+            f"{v:.1f} bps",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+            color=PRIMARY,
+        )
+    axes[0].set_title("Transaction Cost Components (Roundtrip)", fontweight="bold")
     axes[0].set_ylabel("Basis Points (bps)")
     axes[0].set_ylim(0, total_bps * 1.4)
 
     # Panel 2: Regime capital deployment
-    regime_pct = regime.map(
-        {"BULL": BULL_EXPOSURE * 100, "BEAR": BEAR_EXPOSURE * 100}
-    ).astype(float)
-    axes[1].fill_between(regime_pct.index, 0, regime_pct.values,
-                         color=np.where(regime_pct.values > 50, ACCENT, RED),
-                         alpha=0.5, step="post")
-    axes[1].step(regime_pct.index, regime_pct.values, color=PRIMARY, lw=1.5,
-                 where="post")
+    regime_pct = regime.map({"BULL": BULL_EXPOSURE * 100, "BEAR": BEAR_EXPOSURE * 100}).astype(float)
+    axes[1].fill_between(
+        regime_pct.index,
+        0,
+        regime_pct.values,
+        color=np.where(regime_pct.values > 50, ACCENT, RED),
+        alpha=0.5,
+        step="post",
+    )
+    axes[1].step(regime_pct.index, regime_pct.values, color=PRIMARY, lw=1.5, where="post")
     axes[1].set_ylim(0, 115)
     axes[1].set_title("Regime-Driven Capital Deployment", fontweight="bold")
     axes[1].set_ylabel("Capital Deployed (%)")
     axes[1].axhline(100, color=GREEN, lw=0.8, ls=":", alpha=0.5)
     axes[1].axhline(BEAR_EXPOSURE * 100, color=RED, lw=0.8, ls=":", alpha=0.5)
-    axes[1].annotate(f"Bull: {BULL_EXPOSURE * 100:.0f}%",
-                     xy=(0.02, 0.92), xycoords="axes fraction",
-                     fontsize=9, color=GREEN, fontweight="bold")
-    axes[1].annotate(f"Bear: {BEAR_EXPOSURE * 100:.0f}%",
-                     xy=(0.02, 0.15), xycoords="axes fraction",
-                     fontsize=9, color=RED, fontweight="bold")
+    axes[1].annotate(
+        f"Bull: {BULL_EXPOSURE * 100:.0f}%",
+        xy=(0.02, 0.92),
+        xycoords="axes fraction",
+        fontsize=9,
+        color=GREEN,
+        fontweight="bold",
+    )
+    axes[1].annotate(
+        f"Bear: {BEAR_EXPOSURE * 100:.0f}%",
+        xy=(0.02, 0.15),
+        xycoords="axes fraction",
+        fontsize=9,
+        color=RED,
+        fontweight="bold",
+    )
     axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     axes[1].xaxis.set_major_locator(mdates.YearLocator())
     fig.autofmt_xdate(rotation=0, ha="center")
@@ -1021,23 +1053,33 @@ def chart_factor_correlation(data: dict) -> None:
 
     fig, ax = plt.subplots(figsize=(11, 9))
     cmap = sns.diverging_palette(220, 10, as_cmap=True)
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap=cmap,
-                vmin=-1, vmax=1, center=0,
-                square=True, linewidths=0.5, linecolor="white",
-                cbar_kws={"label": "Spearman Correlation", "shrink": 0.7},
-                ax=ax, annot_kws={"size": 7.5})
+    sns.heatmap(
+        corr,
+        annot=True,
+        fmt=".2f",
+        cmap=cmap,
+        vmin=-1,
+        vmax=1,
+        center=0,
+        square=True,
+        linewidths=0.5,
+        linecolor="white",
+        cbar_kws={"label": "Spearman Correlation", "shrink": 0.7},
+        ax=ax,
+        annot_kws={"size": 7.5},
+    )
 
-    ax.set_title("Cross-Sectional Factor Correlation Matrix (13 Factors)",
-                 fontweight="bold", pad=15, fontsize=13)
+    ax.set_title(
+        "Cross-Sectional Factor Correlation Matrix (13 Factors)", fontweight="bold", pad=15, fontsize=13
+    )
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     ax.tick_params(axis="y", rotation=0, labelsize=8)
 
     # Family bracket annotations on the left
     y_pos = 0
-    for family, factors in FACTOR_FAMILIES.items():
+    for _family, factors in FACTOR_FAMILIES.items():
         n_in_corr = sum(1 for f in factors if f in corr.index)
         if n_in_corr > 0:
-            mid = y_pos + n_in_corr / 2
             y_pos += n_in_corr
 
     fig.tight_layout()
@@ -1053,32 +1095,37 @@ def chart_walkforward_folds(data: dict) -> None:
         return
 
     fig, (ax_sharpe, ax_time) = plt.subplots(
-        2, 1, figsize=(14, 7.5),
+        2,
+        1,
+        figsize=(14, 7.5),
         gridspec_kw={"height_ratios": [1, 1.3]},
     )
 
     # ── Panel 1: OOS Sharpe bars positioned at test-period midpoints ──
-    for i, (tr_s, tr_e, te_s, te_e) in enumerate(boundaries):
+    for i, (_tr_s, _tr_e, te_s, te_e) in enumerate(boundaries):
         te_start = pd.Timestamp(te_s)
         te_end = pd.Timestamp(te_e)
         mid = te_start + (te_end - te_start) / 2
         width = (te_end - te_start).days * 0.7
 
         color = GREEN if per_fold[i] > 0 else RED
-        ax_sharpe.bar(mid, per_fold[i], width=width, color=color, alpha=0.8,
-                      edgecolor="white", linewidth=0.5)
+        ax_sharpe.bar(mid, per_fold[i], width=width, color=color, alpha=0.8, edgecolor="white", linewidth=0.5)
         offset = 0.15 * (1 if per_fold[i] >= 0 else -1)
-        ax_sharpe.text(mid, per_fold[i] + offset, f"{per_fold[i]:.2f}",
-                       ha="center",
-                       va="bottom" if per_fold[i] >= 0 else "top",
-                       fontsize=9, fontweight="bold", color=PRIMARY)
+        ax_sharpe.text(
+            mid,
+            per_fold[i] + offset,
+            f"{per_fold[i]:.2f}",
+            ha="center",
+            va="bottom" if per_fold[i] >= 0 else "top",
+            fontsize=9,
+            fontweight="bold",
+            color=PRIMARY,
+        )
 
     ax_sharpe.axhline(0, color="#cccccc", lw=0.8)
     mean_s = np.mean(per_fold)
-    ax_sharpe.axhline(mean_s, color=GOLD, lw=1.5, ls="--",
-                      label=f"Mean OOS Sharpe = {mean_s:.2f}")
-    ax_sharpe.set_title("Out-of-Sample Sharpe Ratio by Fold",
-                        fontweight="bold")
+    ax_sharpe.axhline(mean_s, color=GOLD, lw=1.5, ls="--", label=f"Mean OOS Sharpe = {mean_s:.2f}")
+    ax_sharpe.set_title("Out-of-Sample Sharpe Ratio by Fold", fontweight="bold")
     ax_sharpe.set_ylabel("Sharpe Ratio")
     ax_sharpe.legend(loc="upper right", frameon=True)
     ax_sharpe.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -1093,30 +1140,47 @@ def chart_walkforward_folds(data: dict) -> None:
         te_end_num = mdates.date2num(pd.Timestamp(te_e))
 
         # Train band
-        ax_time.barh(y, tr_end_num - tr_start_num, left=tr_start_num,
-                     height=0.4, color=SECONDARY, alpha=0.6,
-                     label="Train" if i == 0 else "")
+        ax_time.barh(
+            y,
+            tr_end_num - tr_start_num,
+            left=tr_start_num,
+            height=0.4,
+            color=SECONDARY,
+            alpha=0.6,
+            label="Train" if i == 0 else "",
+        )
         # Purge gap
-        ax_time.barh(y, te_start_num - tr_end_num, left=tr_end_num,
-                     height=0.4, color="#eeeeee", alpha=0.6,
-                     label="Purge Gap" if i == 0 else "")
+        ax_time.barh(
+            y,
+            te_start_num - tr_end_num,
+            left=tr_end_num,
+            height=0.4,
+            color="#eeeeee",
+            alpha=0.6,
+            label="Purge Gap" if i == 0 else "",
+        )
         # Test band
-        ax_time.barh(y, te_end_num - te_start_num, left=te_start_num,
-                     height=0.4, color=GOLD, alpha=0.8,
-                     label="Test (OOS)" if i == 0 else "")
+        ax_time.barh(
+            y,
+            te_end_num - te_start_num,
+            left=te_start_num,
+            height=0.4,
+            color=GOLD,
+            alpha=0.8,
+            label="Test (OOS)" if i == 0 else "",
+        )
 
     ax_time.set_yticks(range(1, n_folds + 1))
     ax_time.set_yticklabels([f"Fold {i + 1}" for i in range(n_folds)])
     ax_time.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_time.xaxis.set_major_locator(mdates.YearLocator())
-    ax_time.set_title("Walk-Forward Expanding Window Timeline",
-                      fontweight="bold")
+    ax_time.set_title("Walk-Forward Expanding Window Timeline", fontweight="bold")
     ax_time.set_xlabel("Date")
     ax_time.legend(loc="lower right", frameon=True, ncol=3)
 
     # Sync x-axis limits between both panels
     all_dates = []
-    for tr_s, tr_e, te_s, te_e in boundaries:
+    for tr_s, _tr_e, _te_s, te_e in boundaries:
         all_dates.extend([pd.Timestamp(tr_s), pd.Timestamp(te_e)])
     margin = pd.Timedelta(days=60)
     xlim = (min(all_dates) - margin, max(all_dates) + margin)
@@ -1132,6 +1196,7 @@ def chart_walkforward_folds(data: dict) -> None:
 # 5. METRICS JSON
 # ============================================================================
 
+
 def save_metrics(data: dict) -> None:
     ret = data["daily_ret"]
     ic = data["ic_series"]
@@ -1139,8 +1204,7 @@ def save_metrics(data: dict) -> None:
     oos_cagr_val, _ = cagr(ret)
     mdd, _ = max_drawdown(ret)
     mean_ic_val = float(ic.mean())
-    ic_ir_val = (float(ic.mean() / ic.std(ddof=1))
-                 if ic.std(ddof=1) > 0 else 0.0)
+    ic_ir_val = float(ic.mean() / ic.std(ddof=1)) if ic.std(ddof=1) > 0 else 0.0
 
     wins = (ret > 0).sum()
     total = len(ret)
@@ -1158,9 +1222,7 @@ def save_metrics(data: dict) -> None:
         "mean_ic": round(mean_ic_val, 4),
         "ic_ir": round(ic_ir_val, 4),
         "per_fold_sharpe": [round(s, 4) for s in data["per_fold_sharpe"]],
-        "factor_weights": {
-            k: round(v, 6) for k, v in data["model_weights"].items()
-        },
+        "factor_weights": {k: round(v, 6) for k, v in data["model_weights"].items()},
         "factor_correlations": {
             f"{r}|{c}": round(float(data["factor_corr"].loc[r, c]), 4)
             for r in data["factor_corr"].index
@@ -1169,8 +1231,7 @@ def save_metrics(data: dict) -> None:
         },
         "n_factors": len(data["factor_cols"]),
         "factor_families": {
-            fam: [f for f in facs if f in data["factor_cols"]]
-            for fam, facs in FACTOR_FAMILIES.items()
+            fam: [f for f in facs if f in data["factor_cols"]] for fam, facs in FACTOR_FAMILIES.items()
         },
         "oos_period": {
             "start": str(ret.index[0].date()),
@@ -1183,12 +1244,13 @@ def save_metrics(data: dict) -> None:
     }
 
     METRICS_PATH.write_text(json.dumps(metrics, indent=2) + "\n")
-    print(f"  [OK] backtest_metrics.json")
+    print("  [OK] backtest_metrics.json")
 
 
 # ============================================================================
 # MAIN
 # ============================================================================
+
 
 def main() -> None:
     print("=" * 65)
@@ -1197,21 +1259,22 @@ def main() -> None:
 
     print("\n[1/5] Generating stock characteristics ...")
     chars = generate_stock_characteristics(N_STOCKS)
-    print(f"  Stock traits: quality, risk, momentum_tendency, sentiment")
+    print("  Stock traits: quality, risk, momentum_tendency, sentiment")
 
     print("\n[2/5] Generating synthetic market data (2018-2025) ...")
     prices = generate_stock_prices(chars, N_STOCKS, N_DAYS)
     spy = generate_spy(N_DAYS)
-    print(f"  Stocks: {prices['symbol'].nunique()}, "
-          f"Days: {prices['date'].nunique()}, "
-          f"Range: {prices['date'].min()} to {prices['date'].max()}")
+    print(
+        f"  Stocks: {prices['symbol'].nunique()}, "
+        f"Days: {prices['date'].nunique()}, "
+        f"Range: {prices['date'].min()} to {prices['date'].max()}"
+    )
 
     print("\n[3/5] Computing 13 factors across 6 families ...")
     for fam, facs in FACTOR_FAMILIES.items():
         print(f"  {fam}: {', '.join(facs)}")
     factors = compute_all_factors(prices, chars)
-    print(f"  Factor matrix: {len(factors)} observations, "
-          f"{len(ALL_FACTOR_COLS)} factors")
+    print(f"  Factor matrix: {len(factors)} observations, {len(ALL_FACTOR_COLS)} factors")
 
     print("\n[4/5] Running walk-forward backtest (Ridge, 13 factors) ...")
     data = run_backtest(factors, prices, spy)
@@ -1224,8 +1287,10 @@ def main() -> None:
     print(f"  Max DD:      {mdd:.3%}")
     print(f"  Folds:       {n_folds}")
     print(f"  IC mean:     {data['ic_series'].mean():.4f}")
-    print(f"  OOS period:  {data['daily_ret'].index[0].strftime('%Y-%m-%d')} "
-          f"to {data['daily_ret'].index[-1].strftime('%Y-%m-%d')}")
+    print(
+        f"  OOS period:  {data['daily_ret'].index[0].strftime('%Y-%m-%d')} "
+        f"to {data['daily_ret'].index[-1].strftime('%Y-%m-%d')}"
+    )
 
     print(f"\n[5/5] Generating 10 charts -> {FIG_DIR}/")
     chart_equity_curve(data)

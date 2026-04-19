@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run permutation test + Romano-Wolf stepdown. Production entry point — thin wrapper."""
+
 import argparse
 import sys
 from pathlib import Path
@@ -17,14 +18,14 @@ def main() -> int:
         import pandas as pd
 
         from nyse_ats.config_loader import load_and_validate_config
-        from nyse_core.statistics import block_bootstrap_ci, permutation_test, romano_wolf_stepdown
         from nyse_ats.storage.research_store import ResearchStore
+        from nyse_core.statistics import block_bootstrap_ci, permutation_test, romano_wolf_stepdown
     except ImportError as exc:
         print(f"Error: missing dependency — {exc}. Run 'pip install -e .'", file=sys.stderr)
         return 1
 
     try:
-        configs = load_and_validate_config(args.config_dir)
+        load_and_validate_config(args.config_dir)
         store = ResearchStore(args.db_path)
 
         # Load the most recent backtest result for its daily returns
@@ -32,19 +33,24 @@ def main() -> int:
         returns = pd.Series(dtype=float)
 
         p_value, perm_diag = permutation_test(
-            returns=returns, n_reps=args.n_reps, block_size=args.block_size,
+            returns=returns,
+            n_reps=args.n_reps,
+            block_size=args.block_size,
         )
         print(f"Permutation p-value: {p_value:.4f}")
 
         ci, ci_diag = block_bootstrap_ci(
-            returns=returns, n_reps=args.n_reps, block_size=args.block_size,
+            returns=returns,
+            n_reps=args.n_reps,
+            block_size=args.block_size,
         )
         print(f"Bootstrap 95% CI:    [{ci[0]:.4f}, {ci[1]:.4f}]")
 
         # Romano-Wolf on factor-level returns (placeholder: single factor)
         factor_returns = {"strategy": returns}
         rw_pvalues, rw_diag = romano_wolf_stepdown(
-            factor_returns=factor_returns, n_reps=args.n_reps,
+            factor_returns=factor_returns,
+            n_reps=args.n_reps,
         )
         print("Romano-Wolf adjusted p-values:")
         for name, pv in rw_pvalues.items():

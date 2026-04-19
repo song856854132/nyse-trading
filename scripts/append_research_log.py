@@ -26,13 +26,14 @@ Threat model — what this defends against:
                  Mitigation: the log doesn't replace domain verification; it just makes
                  retroactive edits detectable.
 """
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 GENESIS_PREV_HASH = "0" * 64
@@ -74,9 +75,10 @@ def _last_hash(log_path: Path) -> str:
             try:
                 obj = json.loads(raw)
             except json.JSONDecodeError:
-                print(f"ERROR: non-JSON line in {log_path}. "
-                      "Run scripts/verify_research_log.py to diagnose.",
-                      file=sys.stderr)
+                print(
+                    f"ERROR: non-JSON line in {log_path}. Run scripts/verify_research_log.py to diagnose.",
+                    file=sys.stderr,
+                )
                 sys.exit(2)
             h = obj.get("hash")
             if isinstance(h, str) and len(h) == 64:
@@ -89,7 +91,7 @@ def append_event(log_path: Path, event: dict) -> dict:
     """Append an event to the log with hash chaining. Returns the full record written."""
     prev_hash = _last_hash(log_path)
     # Ensure timestamp is present
-    event.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+    event.setdefault("timestamp", datetime.now(UTC).isoformat())
     this_hash = _compute_hash(prev_hash, event)
     record = {"prev_hash": prev_hash, "entry": event, "hash": this_hash}
     with log_path.open("a") as f:
@@ -98,11 +100,11 @@ def append_event(log_path: Path, event: dict) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="Append a hash-chained event to results/research_log.jsonl"
-    )
+    ap = argparse.ArgumentParser(description="Append a hash-chained event to results/research_log.jsonl")
     ap.add_argument(
-        "--log-path", type=Path, default=Path("results/research_log.jsonl"),
+        "--log-path",
+        type=Path,
+        default=Path("results/research_log.jsonl"),
         help="Path to the research log (default: results/research_log.jsonl)",
     )
     g = ap.add_mutually_exclusive_group(required=True)
@@ -111,10 +113,7 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true", help="Suppress stdout output")
     args = ap.parse_args()
 
-    if args.event_json:
-        event = json.loads(args.event_json)
-    else:
-        event = json.loads(args.event_file.read_text())
+    event = json.loads(args.event_json) if args.event_json else json.loads(args.event_file.read_text())
 
     if not isinstance(event, dict):
         print("ERROR: event must be a JSON object", file=sys.stderr)
