@@ -115,11 +115,11 @@
 **How to apply:** Seed with ~20 risks pulled from existing "known limits" sections. Assign owner + review cadence (quarterly). Link from MODEL_VALIDATION and FRAMEWORK as canonical source.
 **Depends on:** Nothing. ~2 hr initial compile.
 
-### TODO-15: Performance Attribution Report Template
-**What:** Template + sample output for monthly performance attribution (per-factor contribution, per-sector contribution, per-name top/bottom 10, IC realized vs expected, cost breakdown). Lives at `docs/templates/ATTRIBUTION_REPORT.md` with JSON schema sidecar.
-**Why:** Attribution is the #1 LP-facing deliverable. `attribution.py` will emit per-factor P&L but there's no agreed report shape. Without a template, each month's output is ad-hoc → non-comparable over time. MSCI/Bloomberg tear-sheet pattern.
-**How to apply:** Draft the Markdown template (frozen layout), then JSON schema for programmatic fill. Include a worked example using synthetic backtest numbers. Populate with real numbers once TODO-11 completes.
-**Depends on:** `attribution.py` (already in plan), real-data backtest (TODO-11).
+### TODO-15: Performance Attribution Report Template — **CLOSED 2026-04-19**
+**Evidence:** `docs/templates/ATTRIBUTION_REPORT.md:1-205` (10-section frozen layout: header, executive summary, 8-factor attribution table, Brinson 11-sector table, top/bottom-10 names, cost breakdown, 8 invariant gates, diagnostics, change log, footnotes; synthetic worked example marked with ⬛ satisfies A+S+I = 1.32% = sum_C_j + interaction + residual = R_A; F6 cost drag 3.4%/yr within 5%/yr threshold). Schema sidecar `docs/templates/ATTRIBUTION_REPORT.schema.json:1-274` (JSON Schema draft 2020-12, strict `additionalProperties:false`, `$defs` for return_pct/weight/name_row/invariant_row, regex for report_id `^ATTR-\d{4}-\d{2}$` and 64-hex hashes, `f6_threshold_pct` const 5.0 freezes F6 per AP-6, benchmark const RSP). Research-log hash `98524d19366efd5b990d06b62cf8b33d97ee70ef11f6a900a07ec3335b08bfe9` (prev `c6d18ee44c13408a48c38cfe7bc9f095a1a8681cbc2738671f218de2c4f9cc59`, `results/research_log.jsonl:30`). Pytest 1075 passed / 31 skipped / 0 failed; ruff + mypy(src) green.
+**What (original):** Template + sample output for monthly performance attribution (per-factor contribution, per-sector contribution, per-name top/bottom 10, IC realized vs expected, cost breakdown). Lives at `docs/templates/ATTRIBUTION_REPORT.md` with JSON schema sidecar.
+**Why (original):** Attribution is the #1 LP-facing deliverable. `attribution.py` will emit per-factor P&L but there's no agreed report shape. Without a template, each month's output is ad-hoc → non-comparable over time. MSCI/Bloomberg tear-sheet pattern.
+**Follow-up:** Real-number population remains blocked on TODO-11 real-data factor screening; `src/nyse_core/attribution.py` implementation is the downstream consumer of this schema.
 
 ### TODO-16: Reproducibility Pack Specification
 **What:** `docs/REPRODUCIBILITY.md` — one-page spec for the "research pack" produced by every material run: git SHA, config hashes (strategy/gates/data_sources YAMLs), data snapshot hash (DuckDB schema + row counts), one-line reproduction command, Python version, dependency lockfile hash.

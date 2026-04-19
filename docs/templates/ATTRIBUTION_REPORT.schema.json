@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nyse-ats/docs/templates/ATTRIBUTION_REPORT.schema.json",
+  "title": "NYSE ATS Performance Attribution Report",
+  "description": "Machine-fillable sidecar for docs/templates/ATTRIBUTION_REPORT.md. Schema is the single source of truth for programmatic fill by src/nyse_core/attribution.py. Frozen layout: sections are required and in the listed order. Real reports never carry the synthetic flag.",
+  "type": "object",
+  "required": [
+    "header",
+    "executive_summary",
+    "factor_attribution",
+    "brinson_attribution",
+    "name_contributions",
+    "cost_breakdown",
+    "invariants",
+    "diagnostics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "synthetic": {
+      "type": "boolean",
+      "description": "True if values are placeholder/synthetic. Real reports MUST set this to false."
+    },
+    "header": {
+      "type": "object",
+      "required": [
+        "report_id",
+        "strategy",
+        "period_start",
+        "period_end",
+        "rebalances_in_period",
+        "benchmark",
+        "secondary_benchmark",
+        "generated_at",
+        "preparer",
+        "git_commit",
+        "strategy_config_hash",
+        "research_log_anchor_hash",
+        "data_snapshot_hash",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "report_id": {"type": "string", "pattern": "^ATTR-\\d{4}-\\d{2}$"},
+        "strategy": {"type": "string"},
+        "period_start": {"type": "string", "format": "date"},
+        "period_end": {"type": "string", "format": "date"},
+        "rebalances_in_period": {"type": "integer", "minimum": 1},
+        "benchmark": {"type": "string", "enum": ["RSP"]},
+        "secondary_benchmark": {"type": "string", "enum": ["SPY"]},
+        "generated_at": {"type": "string", "format": "date-time"},
+        "preparer": {"type": "string"},
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{7,40}$"},
+        "strategy_config_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "research_log_anchor_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "data_snapshot_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "mode": {"type": "string", "enum": ["paper", "shadow", "live"]}
+      }
+    },
+    "executive_summary": {
+      "type": "object",
+      "required": [
+        "portfolio_gross_return",
+        "benchmark_return",
+        "active_return",
+        "transaction_costs",
+        "portfolio_net_return",
+        "headline_sentence",
+        "top_contributor",
+        "top_detractor",
+        "invariant_status_sentence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "portfolio_gross_return": {"$ref": "#/$defs/return_pct"},
+        "benchmark_return": {"$ref": "#/$defs/return_pct"},
+        "active_return": {"$ref": "#/$defs/return_pct"},
+        "transaction_costs": {"$ref": "#/$defs/return_pct"},
+        "portfolio_net_return": {"$ref": "#/$defs/return_pct"},
+        "headline_sentence": {"type": "string", "minLength": 1, "maxLength": 280},
+        "top_contributor": {"type": "string"},
+        "top_detractor": {"type": "string"},
+        "invariant_status_sentence": {"type": "string", "minLength": 1}
+      }
+    },
+    "factor_attribution": {
+      "type": "object",
+      "required": ["rows", "interaction", "residual", "total_gross"],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["factor", "beta_avg", "contribution_pct", "realized_ic", "sign_check"],
+            "additionalProperties": false,
+            "properties": {
+              "factor": {"type": "string"},
+              "beta_avg": {"type": "number"},
+              "contribution_pct": {"$ref": "#/$defs/return_pct"},
+              "realized_ic": {"type": "number", "minimum": -1, "maximum": 1},
+              "sign_check": {"type": "string", "enum": ["PASS", "FAIL"]}
+            }
+          }
+        },
+        "interaction": {"$ref": "#/$defs/return_pct"},
+        "residual": {"$ref": "#/$defs/return_pct"},
+        "total_gross": {"$ref": "#/$defs/return_pct"}
+      }
+    },
+    "brinson_attribution": {
+      "type": "object",
+      "required": ["rows", "totals"],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "sector",
+              "portfolio_weight",
+              "benchmark_weight",
+              "allocation_pct",
+              "selection_pct",
+              "interaction_pct",
+              "total_pct"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "sector": {"type": "string"},
+              "portfolio_weight": {"$ref": "#/$defs/weight"},
+              "benchmark_weight": {"$ref": "#/$defs/weight"},
+              "allocation_pct": {"$ref": "#/$defs/return_pct"},
+              "selection_pct": {"$ref": "#/$defs/return_pct"},
+              "interaction_pct": {"$ref": "#/$defs/return_pct"},
+              "total_pct": {"$ref": "#/$defs/return_pct"}
+            }
+          }
+        },
+        "totals": {
+          "type": "object",
+          "required": [
+            "portfolio_weight_total",
+            "benchmark_weight_total",
+            "allocation_total_pct",
+            "selection_total_pct",
+            "interaction_total_pct",
+            "active_return_total_pct"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "portfolio_weight_total": {"$ref": "#/$defs/weight"},
+            "benchmark_weight_total": {"$ref": "#/$defs/weight"},
+            "allocation_total_pct": {"$ref": "#/$defs/return_pct"},
+            "selection_total_pct": {"$ref": "#/$defs/return_pct"},
+            "interaction_total_pct": {"$ref": "#/$defs/return_pct"},
+            "active_return_total_pct": {"$ref": "#/$defs/return_pct"}
+          }
+        }
+      }
+    },
+    "name_contributions": {
+      "type": "object",
+      "required": ["top", "bottom"],
+      "additionalProperties": false,
+      "properties": {
+        "top": {"type": "array", "minItems": 0, "maxItems": 10, "items": {"$ref": "#/$defs/name_row"}},
+        "bottom": {"type": "array", "minItems": 0, "maxItems": 10, "items": {"$ref": "#/$defs/name_row"}}
+      }
+    },
+    "cost_breakdown": {
+      "type": "object",
+      "required": [
+        "half_spread_bp",
+        "monday_multiplier_bp",
+        "earnings_week_multiplier_bp",
+        "commission_bp",
+        "realized_slippage_bp",
+        "total_cost_bp_period",
+        "annualized_cost_drag_pct",
+        "f6_threshold_pct",
+        "f6_status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "half_spread_bp": {"type": "number", "minimum": 0},
+        "monday_multiplier_bp": {"type": "number", "minimum": 0},
+        "earnings_week_multiplier_bp": {"type": "number", "minimum": 0},
+        "commission_bp": {"type": "number", "minimum": 0},
+        "realized_slippage_bp": {"type": "number", "minimum": 0},
+        "total_cost_bp_period": {"type": "number", "minimum": 0},
+        "annualized_cost_drag_pct": {"type": "number", "minimum": 0, "maximum": 100},
+        "f6_threshold_pct": {"type": "number", "const": 5.0},
+        "f6_status": {"type": "string", "enum": ["PASS", "WARNING", "BREACH"]}
+      }
+    },
+    "invariants": {
+      "type": "object",
+      "required": [
+        "factor_decomposition_closes",
+        "brinson_decomposition_closes",
+        "sector_weights_sum_to_100",
+        "all_factors_pass_sign_check",
+        "max_single_stock_contrib_within_10pct",
+        "cost_drag_within_f6",
+        "period_in_research_window",
+        "research_log_anchor_verifies"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "factor_decomposition_closes": {"$ref": "#/$defs/invariant_row"},
+        "brinson_decomposition_closes": {"$ref": "#/$defs/invariant_row"},
+        "sector_weights_sum_to_100": {"$ref": "#/$defs/invariant_row"},
+        "all_factors_pass_sign_check": {"$ref": "#/$defs/invariant_row"},
+        "max_single_stock_contrib_within_10pct": {"$ref": "#/$defs/invariant_row"},
+        "cost_drag_within_f6": {"$ref": "#/$defs/invariant_row"},
+        "period_in_research_window": {"$ref": "#/$defs/invariant_row"},
+        "research_log_anchor_verifies": {"$ref": "#/$defs/invariant_row"}
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["level", "source", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "level": {"type": "string", "enum": ["INFO", "WARN", "ERROR"]},
+          "source": {"type": "string"},
+          "message": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "return_pct": {
+      "type": "number",
+      "description": "Return expressed as a decimal fraction, e.g. 0.0342 for +3.42%",
+      "minimum": -1,
+      "maximum": 5
+    },
+    "weight": {
+      "type": "number",
+      "description": "Portfolio weight expressed as a decimal fraction, e.g. 0.05 for 5%",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "name_row": {
+      "type": "object",
+      "required": ["rank", "symbol", "sector", "avg_weight", "period_return_pct", "contribution_bp", "dominant_factor"],
+      "additionalProperties": false,
+      "properties": {
+        "rank": {"type": "integer", "minimum": 1},
+        "symbol": {"type": "string", "pattern": "^[A-Z][A-Z0-9.\\-]{0,9}$"},
+        "sector": {"type": "string"},
+        "avg_weight": {"$ref": "#/$defs/weight"},
+        "period_return_pct": {"$ref": "#/$defs/return_pct"},
+        "contribution_bp": {"type": "number"},
+        "dominant_factor": {"type": "string"}
+      }
+    },
+    "invariant_row": {
+      "type": "object",
+      "required": ["status", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+        "detail": {"type": "string"}
+      }
+    }
+  }
+}
