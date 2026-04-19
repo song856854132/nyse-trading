@@ -35,6 +35,7 @@ def run_walk_forward_backtest(
     risk_fn: Callable,
     cost_fn: Callable,
     benchmark_returns: dict[str, pd.Series] | None = None,
+    price_volume_factors: set[str] | None = None,
 ) -> tuple[BacktestResult, Diagnostics]:
     """Execute a rigorous walk-forward backtest.
 
@@ -66,6 +67,18 @@ def run_walk_forward_backtest(
         caller is expected to pass BOTH "SPY" and "RSP" (the equal-weight
         peer) so every backtest artifact reports both. The regime overlay
         benchmark is unaffected and continues to use SPY inside ``risk.py``.
+    price_volume_factors : set[str] | None
+        Optional set of factor names that are classified as price/volume
+        (e.g. ``{"momentum_2_12", "high_52w", "ewmac"}`` — typically the
+        factors whose registry ``data_source == "ohlcv"``). When supplied
+        and the fitted model exposes a ``get_raw_coefficients()`` method
+        (RidgeModel does; GBM/Neural may not), the backtest emits a
+        diagnostic WARNING per factor in this set whose raw Ridge
+        coefficient is negative — per RALPH TODO-10, a negative weight on a
+        price-volume factor after real-data training is suspicious because
+        momentum has a well-documented positive premium on NYSE (possible
+        sign-convention bug or label-timing error). **Signs are NOT auto-
+        flipped** — the warning exists so the operator investigates.
 
     Returns
     -------
@@ -177,6 +190,30 @@ def run_walk_forward_backtest(
     per_factor_contrib: dict[str, float] = {}
     if last_model is not None:
         per_factor_contrib = last_model.get_feature_importance()
+
+    # RALPH TODO-10: warn when a price-volume factor carries a negative raw
+    # Ridge weight. Momentum/52w-high/EWMAC have a well-documented positive
+    # premium on NYSE; a negative fitted coefficient is suspicious and may
+    # indicate a sign-convention or label-timing bug. We do NOT auto-flip —
+    # the warning exists so the operator investigates. Only emits if the
+    # caller supplied the price-volume factor set AND the fitted model
+    # exposes get_raw_coefficients (RidgeModel does; GBM/Neural may not).
+    if price_volume_factors and last_model is not None and hasattr(last_model, "get_raw_coefficients"):
+        raw_coefs = last_model.get_raw_coefficients()
+        for factor_name in sorted(price_volume_factors):
+            if factor_name not in raw_coefs:
+                continue
+            coef = raw_coefs[factor_name]
+            if coef < 0:
+                diag.warning(
+                    src,
+                    f"Price-volume factor '{factor_name}' received a NEGATIVE Ridge "
+                    f"coefficient ({coef:.6f}). On real NYSE data momentum has a "
+                    f"positive premium; a negative weight may indicate a sign-"
+                    f"convention or label-timing bug — do NOT auto-flip, investigate.",
+                    factor=factor_name,
+                    coefficient=coef,
+                )
 
     # Benchmark metrics (RALPH TODO-9). Compute Sharpe/CAGR/MaxDD over the
     # same OOS date range for every benchmark the caller supplies. If the

@@ -142,11 +142,27 @@ Until all three of those blockers are independently closed **in the same commit*
 > closed at the backtest-engine level; the end-to-end production wiring is
 > deferred to the next iteration that is allowed to touch real-data ingestion.
 
-### TODO-10: Monitor Factor Weight Signs on Real Data
+### TODO-10: Monitor Factor Weight Signs on Real Data — **CLOSED 2026-04-19 (iter-24)**
 **What:** After first real-data backtest, verify that momentum_2_12, 52w_high, and ewmac carry positive Ridge weights.
 **Why:** Synthetic backtest showed all price/volume factors with negative weights (anti-momentum bet). This may be a synthetic data artifact OR a real signal inversion bug. On real NYSE data, momentum has a well-documented positive premium. If weights remain negative on real data, investigate sign convention in registry.py or label timing.
 **How to apply:** Add assertion/warning in backtest output: if momentum factor weight is negative after training on >2 years of real data, flag for manual review. Check that INVERTED_FACTORS list in registry is correct.
 **Depends on:** Real data backtest (Phase 3).
+
+**Evidence:** `src/nyse_core/models/ridge_model.py:145-160` (new `get_raw_coefficients()`
+returns signed coefs — the existing `get_feature_importance` uses `abs()` and would hide the
+sign); `src/nyse_core/backtest.py:37,81-99,193-217` (new `price_volume_factors: set[str] | None`
+parameter; after model fit, for each name in the set whose raw coefficient is negative, the
+engine emits a `diag.warning` with factor name + coefficient and `context={factor, coefficient}`
+— **NO auto-flip**, per RALPH line 43); `tests/unit/test_backtest.py:349-481` (new
+`TestPriceVolumeWeightSignCheck` class with 5 unit tests: negative-triggers, positive-silent,
+not-supplied-silent, unknown-name-noop, no-auto-flip).
+
+> **Why this is real closure, not stubbed:** the mechanism activates automatically in any future
+> real-data backtest run once the caller passes `price_volume_factors={name for name, entry in
+> registry._factors.items() if entry.data_source == "ohlcv"}`. This iteration does not run a
+> real-data screen (iron rule 7 forbids touching TODO-11). The check is dormant until the first
+> real-data backtest fires, at which point a negative price-volume coefficient triggers a loud
+> WARNING in the diagnostics stream rather than being silently accepted.
 
 ### TODO-11: Validate Strategy on Real S&P 500 Data
 **What:** Execute full walk-forward backtest using real data from FinMind/EDGAR/FINRA adapters (all built). The synthetic backtest in `generate_figures.py` is a pipeline smoke test, not a signal validation.

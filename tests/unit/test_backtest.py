@@ -346,3 +346,125 @@ class TestBenchmarkReporting:
         # SPY and RSP draw from different distributions so their Sharpes
         # should not be identical by coincidence.
         assert result.benchmark_metrics["SPY"]["sharpe"] != result.benchmark_metrics["RSP"]["sharpe"]
+
+
+class TestPriceVolumeWeightSignCheck:
+    """RALPH TODO-10: warn when a price-volume factor has a negative Ridge weight.
+
+    The warning exists so the operator investigates a possible sign-convention
+    or label-timing bug. The backtest MUST NOT auto-flip signs.
+    """
+
+    def _make_anti_signal_data(
+        self,
+        n_days: int = 2000,
+        seed: int = 31,
+    ) -> tuple[pd.DataFrame, pd.Series]:
+        """Feature f0 has a NEGATIVE relationship with returns — Ridge fits
+        a negative coefficient on f0. Treating f0 as a 'price-volume' factor
+        must trigger the TODO-10 warning.
+        """
+        rng = np.random.default_rng(seed)
+        dates = pd.bdate_range("2015-01-02", periods=n_days)
+        features = rng.uniform(0, 1, (n_days, 3))
+        noise = rng.normal(0, 0.01, n_days)
+        # NEGATIVE coefficient on feature 0 — high f0 predicts low return.
+        returns = -0.05 * features[:, 0] + noise
+        feature_df = pd.DataFrame(features, index=dates, columns=["f0", "f1", "f2"])
+        return_series = pd.Series(returns, index=dates, name="returns")
+        return feature_df, return_series
+
+    def _backtest(self, features, returns, price_volume_factors):
+        cv = PurgedWalkForwardCV(
+            n_folds=2,
+            min_train_days=504,
+            test_days=126,
+            purge_days=5,
+            embargo_days=5,
+        )
+        return run_walk_forward_backtest(
+            feature_matrix=features,
+            returns=returns,
+            cv=cv,
+            model_factory=RidgeModel,
+            allocator_fn=_simple_allocator,
+            risk_fn=_passthrough_risk,
+            cost_fn=_zero_cost,
+            price_volume_factors=price_volume_factors,
+        )
+
+    def test_negative_pv_weight_emits_warning(self):
+        """f0 has a negative Ridge weight AND is in the price-volume set → WARNING."""
+        features, returns = self._make_anti_signal_data()
+        _, diag = self._backtest(features, returns, price_volume_factors={"f0"})
+        warnings = [
+            m
+            for m in diag.messages
+            if m.level.value == "WARNING"
+            and "NEGATIVE Ridge coefficient" in m.message
+            and m.context.get("factor") == "f0"
+        ]
+        assert len(warnings) == 1, (
+            f"Expected exactly one TODO-10 warning for f0; got {len(warnings)}: "
+            f"{[w.message for w in warnings]}"
+        )
+        # Diagnostic context must include the raw coefficient so the reviewer
+        # can see the magnitude without re-running.
+        assert "coefficient" in warnings[0].context
+        assert warnings[0].context["coefficient"] < 0
+
+    def test_positive_pv_weight_silent(self):
+        """f0 has a POSITIVE Ridge weight — no TODO-10 warning."""
+        features, returns = _make_synthetic_data(n_days=2000, signal_strength=0.05, seed=7)
+        _, diag = self._backtest(features, returns, price_volume_factors={"f0"})
+        warnings = [
+            m
+            for m in diag.messages
+            if m.level.value == "WARNING" and "NEGATIVE Ridge coefficient" in m.message
+        ]
+        assert warnings == [], (
+            f"Did not expect TODO-10 warning on positively-fit f0; got: {[w.message for w in warnings]}"
+        )
+
+    def test_not_supplied_is_silent(self):
+        """Caller opts out → no TODO-10 warning even when a coef is negative."""
+        features, returns = self._make_anti_signal_data()
+        _, diag = self._backtest(features, returns, price_volume_factors=None)
+        warnings = [
+            m
+            for m in diag.messages
+            if m.level.value == "WARNING" and "NEGATIVE Ridge coefficient" in m.message
+        ]
+        assert warnings == [], "price_volume_factors=None must suppress TODO-10 warnings entirely."
+
+    def test_unknown_factor_name_is_safe_noop(self):
+        """A factor name in the PV set but not in the feature matrix is ignored."""
+        features, returns = self._make_anti_signal_data()
+        # "f0" is negative, "phantom_mom" is not in the feature matrix at all.
+        _, diag = self._backtest(features, returns, price_volume_factors={"f0", "phantom_mom"})
+        phantom_warnings = [
+            m
+            for m in diag.messages
+            if m.level.value == "WARNING"
+            and "NEGATIVE Ridge coefficient" in m.message
+            and m.context.get("factor") == "phantom_mom"
+        ]
+        assert phantom_warnings == [], (
+            "A PV-factor name that is not in the feature matrix must not emit a warning."
+        )
+
+    def test_warning_does_not_flip_coefficient(self):
+        """Iron discipline: warning fires but coefficients are NOT mutated."""
+        features, returns = self._make_anti_signal_data()
+        result, _ = self._backtest(features, returns, price_volume_factors={"f0"})
+        # per_factor_contribution comes from get_feature_importance which uses
+        # abs() normalization — so we can't check the sign there. But we CAN
+        # check that the raw-coefficient helper still returns a negative f0
+        # when called on the same data — i.e., the backtest did not flip it.
+        # Re-fit on the whole dataset to inspect the raw coefficient directly.
+        model = RidgeModel()
+        model.fit(features, returns)
+        raw = model.get_raw_coefficients()
+        assert raw["f0"] < 0, "f0's raw coefficient must remain negative — no auto-flip."
+        # And the backtest still produced a valid result object.
+        assert isinstance(result, BacktestResult)

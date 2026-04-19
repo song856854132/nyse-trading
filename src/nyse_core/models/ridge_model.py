@@ -140,3 +140,19 @@ class RidgeModel:
 
         normalized = abs_coefs / total
         return dict(zip(self._feature_names, normalized.tolist(), strict=False))
+
+    def get_raw_coefficients(self) -> dict[str, float]:
+        """Return signed Ridge coefficients keyed by feature name.
+
+        Unlike ``get_feature_importance`` (which returns normalized absolute
+        values and is sign-agnostic), this method preserves the original
+        sign. Per RALPH TODO-10 the backtest engine needs access to the
+        raw signed weights to emit a WARNING when a price-volume factor
+        receives a negative Ridge weight on real data (possible sign-
+        convention bug) — the abs/normalized importance hides that signal.
+
+        Returns an empty dict if the model has not been fit.
+        """
+        if self._model is None or not hasattr(self._model, "coef_"):
+            return {}
+        return dict(zip(self._feature_names, [float(c) for c in self._model.coef_], strict=False))
