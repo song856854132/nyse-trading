@@ -41,7 +41,7 @@ and inadmissible — the table will flag those as **INADMISSIBLE**.
 
 | id | forecast_date | prediction_target | forecast_value | forecast_source | outcome_date | outcome_value | outcome_source | calibration | error_magnitude | notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| factor-ivol_20d-2016_2023 | 2026-04-15 | ivol_20d G0-G5 verdict on 2016-2023 | PASS likely (TWSE prior: strong Tier 1 factor) | plan `Factor Priority List Tier 1`, 2026-04-15 | 2026-04-18 | FAIL (G0/G1/G2/G3/G4 FAIL) | results/factors/ivol_20d/gate_results.json | MISS | — | First real-data falsification. Low-vol winter 2016-2019 + Q1 2021 meme squeeze are leading explanations. Raw IC = +0.0213 on pre-2020 subset (sanity check passes — not a code bug). See `docs/INDEPENDENT_VALIDATION_DRAFT.md` §4. AP-6 upheld: sign NOT flipped. |
+| factor-ivol_20d-2016_2023 | 2026-04-15 | ivol_20d G0-G5 verdict on 2016-2023 | PASS likely (TWSE prior: strong Tier 1 factor) | plan `Factor Priority List Tier 1`, 2026-04-15 | 2026-04-18 | FAIL (G0/G1/G2/G3/G4 FAIL) | results/factors/ivol_20d/gate_results.json | MISS | OOS Sharpe −1.916 vs G0 threshold ≥ 0.30 | First real-data falsification. Low-vol winter 2016-2019 + Q1 2021 meme squeeze are leading explanations. Raw IC = +0.0213 on pre-2020 subset (sanity check passes — not a code bug). See `docs/INDEPENDENT_VALIDATION_DRAFT.md` §4. AP-6 upheld: sign NOT flipped. |
 | factor-high_52w-2016_2023 | 2026-04-15 | high_52w G0-G5 verdict on 2016-2023 | PASS likely | plan `Factor Priority List Tier 1` | 2026-04-18 | FAIL (G0/G1/G2/G3/G4 FAIL) | results/factors/high_52w/gate_results.json | MISS | OOS Sharpe −1.23 vs target ≥0.3 | Disposition-effect signal inverted on 2016-2023. IC mean (−0.0055) and IC_IR (−0.023) both negative — proximity-to-52w-high anti-predicts forward returns in this window. Hypotheses: AI/mega-cap concentration (2020-2023) made "stocks near high" correlate with late-stage momentum exhaustion; COVID whipsaw broke reference-point anchoring. AP-6: sign NOT flipped. |
 | factor-momentum_2_12-2016_2023 | 2026-04-15 | momentum_2_12 G0-G5 verdict on 2016-2023 | UNCERTAIN (DEAD on TWSE; may work on NYSE) | plan `Factor Priority List Tier 2` | 2026-04-18 | FAIL (G2/G3 FAIL) | results/factors/momentum_2_12/gate_results.json | MISS | IC_mean 0.0189 vs ≥0.02 (miss by 1 bp); IC_IR 0.078 vs ≥0.5 | **Borderline positive.** OOS Sharpe 0.516 (PASS), perm p=0.0020 (PASS, strong), MaxDD −28% (PASS). Signal is directionally present but noisy — IC_IR 0.08 means 6x more noise than threshold. Literally single-basis-point miss on G2. AP-6 prohibits gate loosening. Implication: momentum survives post-hoc defenses (permutation test) but not the discipline gates. Do NOT admit. Candidate combination partner later if paired with a stabilizing signal. |
 | factor-piotroski-2016_2023 | 2026-04-15 | piotroski G0-G5 verdict on 2016-2023 | PASS likely | plan `Factor Priority List Tier 1` | 2026-04-18 | FAIL (G0/G2/G3 FAIL) | results/factors/piotroski/gate_results.json | MISS | OOS Sharpe 0.04 vs ≥0.3; IC mean 0.009 vs ≥0.02; IC_IR 0.089 vs ≥0.5 | EDGAR companyfacts adapter rewritten + 308,660 fact rows ingested. Signal statistically real (perm p=0.002) but economically weak — half the admission-IC threshold. AP-6 upheld. |
@@ -50,6 +50,44 @@ and inadmissible — the table will flag those as **INADMISSIBLE**.
 | ensemble-oos_sharpe-2016_2023 | 2026-04-15 | Ensemble OOS Sharpe on research period | 0.5 - 0.8 (Phase 3 exit target) | plan Build Phase 3 target | 2026-04-18 | UNBUILDABLE (0/6 factors admitted) | — | MISS | n/a | 6 Tier 1+2 factors screened; 0 passed G0-G5. Ensemble cannot be constructed without admitted factors. See "Pattern observation" section below. Phase 3 target at risk. |
 | ensemble-oos_sharpe-final | 2026-04-15 | Final ensemble OOS Sharpe after Phase 4 optimization | 0.8 - 1.2 | plan Build Phase 4 target | — | not yet run | — | PENDING | — | Blocked behind Phase 3 completion. |
 | holdout-sharpe-2024_2025 | 2026-04-15 | Holdout Sharpe on 2024-2025 | > 0 (any positive OOS Sharpe admits to paper; < 0 STOPS) | plan Statistical Validation Suite step 8 | — | not yet run | — | PENDING | — | **DO NOT touch until all 8 preconditions pass.** See `results/holdout/.holdout_used` lockfile absence. |
+
+### Predicted Sharpe Range vs Realized Sharpe — Per-Failed-Factor Summary (RALPH TODO-22)
+
+> Source of predicted ranges: the NYSE ATS plan (`/home/song856854132/.claude/plans/dreamy-riding-quasar.md`
+> §"Factor Priority List for NYSE" Tier 1 + Tier 2 priors) combined with the G0 admission
+> threshold in `config/gates.yaml:10` (`oos_sharpe >= 0.30`) and the Phase 3 ensemble target
+> (`OOS Sharpe 0.5 - 0.8`). "Realized Sharpe" is the long-short quintile OOS Sharpe loaded
+> directly from `results/factors/<name>/gate_results.json` → `gate_metrics.G0_value`. All
+> realized numbers are RESEARCH-period only (2016-2023); iron rule 1 holds (holdout untouched).
+> AP-6 holds: no threshold in `config/gates.yaml` was edited after these results were observed.
+
+| Factor | Tier / Prior | Predicted Sharpe range | Realized Sharpe | Delta vs lower bound | Calibration |
+|---|---|---:|---:|---:|:---:|
+| ivol_20d | Tier 1 — "PASS likely" (TWSE lottery-demand prior) | [0.30, 0.80] | −1.916 | −2.22 | MISS |
+| high_52w | Tier 1 — "PASS likely" (disposition-effect prior) | [0.30, 0.80] | −1.229 | −1.53 | MISS |
+| piotroski | Tier 1 — "PASS likely" (F-score underreaction prior) | [0.30, 0.80] | 0.039 | −0.26 | MISS |
+| momentum_2_12 | Tier 2 — "UNCERTAIN" (DEAD on TWSE) | [−0.10, 0.50] | 0.516 | +0.62 | MISS (G2/G3) |
+| accruals | Tier 2 — "PASS plausible" (Sloan anomaly) | [0.30, 0.50] | 0.577 | +0.28 | MISS (G2/G3) |
+| profitability | Tier 2 — "PASS plausible" (Novy-Marx) | [0.30, 0.50] | 1.148 | +0.85 | MISS (G2/G3) |
+
+**Reading the table.** Three factors (`ivol_20d`, `high_52w`, `piotroski`) failed G0 itself —
+their long-short Sharpe came in *below* the admission threshold, sometimes by 2σ. Three
+factors (`momentum_2_12`, `accruals`, `profitability`) cleared G0 — two by a substantial
+margin — but still failed the ensemble because G2 (IC mean ≥ 0.02) or G3 (IC_IR ≥ 0.5)
+fell short. This is the single most important pattern in the 6-of-6 result: **long-short
+Sharpe alone is not a sufficient statistic for admission.** A factor can earn a respectable
+portfolio Sharpe while having per-name ranking noise too high for stable ensemble
+contribution. G2/G3 are the gates that caught it. AP-6 prohibits weakening either
+threshold to rescue any of these three factors; any proposal to revisit belongs in a
+pre-registered variant with a distinct friction hypothesis (see TODO-23 treatment of
+regime-conditional ivol for the canonical example).
+
+**Ensemble implication.** The Phase 3 target of OOS Sharpe 0.5-0.8 at the ensemble layer
+is unreachable as long as 0 of 6 factors have been admitted. The
+`ensemble-oos_sharpe-2016_2023` row in the Pre-live table above resolves `UNBUILDABLE`
+against that target. No further factor screens run in this loop per iron rule 7.
+
+---
 
 ### Live forecasts (post-paper / post-live)
 
