@@ -29,10 +29,15 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Install project (dev + research extras)
+      - name: Install project (dev + research + ml extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,research]"
+          # Install CPU-only torch wheel first to keep CI runtime bounded
+          # (default torch = CUDA build, ~2GB; torch CPU = ~200MB). Subsequent
+          # `pip install -e ".[ml]"` is a no-op for torch because the >=2.1
+          # constraint is already satisfied by the CPU wheel.
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -e ".[dev,research,ml]"
 
       - name: Install uv (lockfile consistency check)
         run: pip install uv

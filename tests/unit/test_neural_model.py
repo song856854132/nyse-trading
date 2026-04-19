@@ -193,9 +193,12 @@ class TestFallback:
 
         first_scores, _ = model.predict(X)
 
-        # Force an error on second fit by patching torch.manual_seed
+        # Force an error on second fit by patching torch.manual_seed at its library path.
+        # `torch` is imported lazily inside neural_model.fit, so it is not a module-level
+        # attribute of nyse_core.models.neural_model — patching torch.manual_seed
+        # directly affects the same object the lazy import resolves to.
         with patch(
-            "nyse_core.models.neural_model.torch.manual_seed",
+            "torch.manual_seed",
             side_effect=RuntimeError("mock error"),
         ):
             diag2 = model.fit(X, y)

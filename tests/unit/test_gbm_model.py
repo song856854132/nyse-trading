@@ -180,9 +180,12 @@ class TestFallback:
 
         first_scores, _ = model.predict(X)
 
-        # Force an error on second fit by patching LGBMRegressor.fit
+        # Force an error on second fit by patching LGBMRegressor at its library path.
+        # `lgb` is imported lazily inside gbm_model.fit, so it is not a module-level
+        # attribute of nyse_core.models.gbm_model — patching lightgbm.LGBMRegressor
+        # directly affects the same object the lazy import resolves to.
         with patch(
-            "nyse_core.models.gbm_model.lgb.LGBMRegressor",
+            "lightgbm.LGBMRegressor",
             side_effect=RuntimeError("mock training error"),
         ):
             diag2 = model.fit(X, y)

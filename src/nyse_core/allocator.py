@@ -9,7 +9,7 @@ from __future__ import annotations
 import pandas as pd
 
 from nyse_core.contracts import Diagnostics
-from nyse_core.schema import DEFAULT_SELL_BUFFER, DEFAULT_TOP_N
+from nyse_core.schema import BEAR_EXPOSURE, BULL_EXPOSURE, DEFAULT_SELL_BUFFER, DEFAULT_TOP_N, RegimeState
 
 _SRC = "allocator"
 
@@ -135,3 +135,37 @@ def equal_weight(
 
     diag.info(_SRC, "equal weight assigned", count=len(selected), weight=round(w, 6))
     return weights, diag
+
+
+def apply_regime_scaling(
+    weights: dict[str, float],
+    regime: RegimeState,
+    bull_exposure: float = BULL_EXPOSURE,
+    bear_exposure: float = BEAR_EXPOSURE,
+) -> tuple[dict[str, float], Diagnostics]:
+    """Scale a normalized weight dict by the regime's exposure cap.
+
+    Companion to risk.apply_regime_overlay — that function operates on a scalar
+    exposure given raw SPY/SMA200 inputs; this one operates on an already-computed
+    weight dict given an already-classified RegimeState. Used by the portfolio
+    construction path where weights are finalized before regime application.
+
+    Relative proportions are preserved: every weight is multiplied by the same
+    scaling factor (bull_exposure for BULL, bear_exposure for BEAR). All weights
+    remain non-negative as long as inputs are non-negative.
+    """
+    diag = Diagnostics()
+
+    target = bull_exposure if regime == RegimeState.BULL else bear_exposure
+    scaled = {sym: w * target for sym, w in weights.items()}
+
+    diag.info(
+        _SRC,
+        f"regime scaling applied: {regime.value}",
+        regime=regime.value,
+        target_exposure=round(target, 6),
+        original_total=round(sum(weights.values()), 6),
+        scaled_total=round(sum(scaled.values()), 6),
+        n_positions=len(weights),
+    )
+    return scaled, diag

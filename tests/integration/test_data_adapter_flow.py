@@ -115,30 +115,82 @@ def _build_finmind_response(
     return {"status": 200, "msg": "success", "data": data}
 
 
-def _build_edgar_response(
-    symbol: str,
-    n_filings: int = 2,
+def _build_edgar_companyfacts_response(
+    n_quarters: int = 2,
+    base_year: int = 2022,
 ) -> dict[str, Any]:
-    """Build a mock EDGAR search API JSON response."""
-    hits = []
-    for i in range(n_filings):
-        period_end = f"2024-{6 + i:02d}-30"
-        file_date = f"2024-{7 + i:02d}-15"
-        hits.append(
+    """Build a mock SEC EDGAR companyfacts JSON response.
+
+    Mirrors the shape returned by ``data.sec.gov/api/xbrl/companyfacts/CIK##########.json``:
+    each XBRL tag under ``facts.us-gaap.<Tag>.units.<UnitKey>`` is a list of fact
+    dicts with ``start``, ``end``, ``val``, ``filed``, ``form`` keys. The adapter
+    filters flow metrics (Revenues, NetIncomeLoss) by ``(end - start)`` window —
+    80-100 days keeps quarterly slices for 10-Q, 350-380 days keeps annual slices
+    for 10-K. PiT metrics (Assets) have no ``start`` and pass through unfiltered.
+
+    All dates remain inside the 2016-2023 research window to honor iron rule 1.
+    """
+    revenues_facts: list[dict[str, Any]] = []
+    net_income_facts: list[dict[str, Any]] = []
+    assets_facts: list[dict[str, Any]] = []
+
+    for i in range(n_quarters):
+        # Quarter end months: March, June, September, December (rolling).
+        q_end_month = 3 * (i + 1)
+        q_start_month = q_end_month - 2
+        period_start = f"{base_year}-{q_start_month:02d}-01"
+        period_end = f"{base_year}-{q_end_month:02d}-28"
+        filed_month = q_end_month + 1  # 10-Q typically filed ~1 month after period end
+        filed = f"{base_year}-{filed_month:02d}-15"
+
+        revenues_facts.append(
             {
-                "_source": {
-                    "file_date": file_date,
-                    "period_of_report": period_end,
-                    "file_type": "10-Q",
-                    "xbrl_facts": {
-                        "Revenues": 1_000_000 * (i + 1),
-                        "NetIncomeLoss": 200_000 * (i + 1),
-                        "Assets": 5_000_000 * (i + 1),
-                    },
-                }
+                "start": period_start,
+                "end": period_end,
+                "val": 1_000_000 * (i + 1),
+                "accn": f"0000320193-{base_year - 2000:02d}-{i:06d}",
+                "fy": base_year,
+                "fp": f"Q{i + 1}",
+                "form": "10-Q",
+                "filed": filed,
             }
         )
-    return {"hits": {"hits": hits}}
+        net_income_facts.append(
+            {
+                "start": period_start,
+                "end": period_end,
+                "val": 200_000 * (i + 1),
+                "accn": f"0000320193-{base_year - 2000:02d}-{i:06d}",
+                "fy": base_year,
+                "fp": f"Q{i + 1}",
+                "form": "10-Q",
+                "filed": filed,
+            }
+        )
+        # Assets is PiT — no "start" key; passes the flow-metric period filter.
+        assets_facts.append(
+            {
+                "end": period_end,
+                "val": 5_000_000 * (i + 1),
+                "accn": f"0000320193-{base_year - 2000:02d}-{i:06d}",
+                "fy": base_year,
+                "fp": f"Q{i + 1}",
+                "form": "10-Q",
+                "filed": filed,
+            }
+        )
+
+    return {
+        "cik": 320193,
+        "entityName": "Apple Inc.",
+        "facts": {
+            "us-gaap": {
+                "Revenues": {"units": {"USD": revenues_facts}},
+                "NetIncomeLoss": {"units": {"USD": net_income_facts}},
+                "Assets": {"units": {"USD": assets_facts}},
+            }
+        },
+    }
 
 
 # ── Test Classes ──────────────────────────────────────────────────────────
@@ -192,36 +244,46 @@ class TestAdapterToStorageFlow:
             assert not load_diag.has_errors
             assert len(loaded) == len(ohlcv_df)
 
-    @pytest.mark.skip(
-        reason="Mock structure matches legacy EDGAR search API; current adapter uses "
-        "companyfacts XBRL endpoint. Test needs rewrite — tracked in TODO-30."
-    )
     def test_edgar_to_research_store(self, tmp_path: Path) -> None:
-        """Mock EDGAR API -> adapter.fetch() -> store features -> load -> verify."""
+        """Mock companyfacts JSON -> adapter.fetch() -> store features -> load -> verify.
+
+        Verifies the full EDGAR -> ResearchStore round-trip with a mock structured
+        exactly like the real ``data.sec.gov/api/xbrl/companyfacts/CIK##########.json``
+        payload. Bypasses the ticker -> CIK lookup by injecting ``ticker_cik_map``.
+        Dates stay inside the 2016-2023 research window to honor iron rule 1.
+        """
         config = _make_edgar_config()
         limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=1)
         session = MagicMock()
 
         symbols = ["AAPL"]
-        start = date(2024, 1, 1)
-        end = date(2024, 12, 31)
+        start = date(2022, 1, 1)
+        end = date(2022, 12, 31)
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = _build_edgar_response("AAPL", n_filings=2)
+        mock_resp.json.return_value = _build_edgar_companyfacts_response(n_quarters=2, base_year=2022)
         mock_resp.raise_for_status.return_value = None
         session.get.return_value = mock_resp
 
-        adapter = EdgarAdapter(config, limiter, session=session)
+        adapter = EdgarAdapter(
+            config,
+            limiter,
+            session=session,
+            ticker_cik_map={"AAPL": 320193},
+        )
         edgar_df, diag = adapter.fetch(symbols, start, end)
 
-        assert not diag.has_errors
+        assert not diag.has_errors, f"Fetch errors: {diag.messages}"
         assert not edgar_df.empty
         assert "metric_name" in edgar_df.columns
         assert "value" in edgar_df.columns
+        # Revenues + NetIncomeLoss (quarterly, period-acceptable) + Assets (PiT) all present.
+        metrics_returned = set(edgar_df["metric_name"].unique())
+        assert {"revenue", "net_income", "total_assets"}.issubset(metrics_returned)
 
-        # Store as features in ResearchStore
-        rebalance = date(2024, 7, 15)
+        # Store as features in ResearchStore.
+        rebalance = date(2022, 7, 15)
         feature_df = edgar_df.rename(columns={"metric_name": "factor_name"}).copy()
         feature_df = feature_df[[COL_DATE, COL_SYMBOL, "factor_name", "value"]]
 
@@ -310,19 +372,30 @@ class TestAdapterToStorageFlow:
         assert result.empty
 
     def test_edgar_adapter_handles_no_filings(self) -> None:
-        """EDGAR adapter returns empty df when no filings found."""
+        """EDGAR adapter returns empty df when companyfacts has no us-gaap facts."""
         config = _make_edgar_config()
         limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=1)
         session = MagicMock()
 
+        # Companyfacts shape with an empty us-gaap block: adapter parses cleanly
+        # and returns an empty DataFrame (no rows extracted) with no errors.
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"hits": {"hits": []}}
+        mock_resp.json.return_value = {
+            "cik": 320193,
+            "entityName": "Apple Inc.",
+            "facts": {"us-gaap": {}},
+        }
         mock_resp.raise_for_status.return_value = None
         session.get.return_value = mock_resp
 
-        adapter = EdgarAdapter(config, limiter, session=session)
-        result, diag = adapter.fetch(["AAPL"], date(2024, 1, 1), date(2024, 12, 31))
+        adapter = EdgarAdapter(
+            config,
+            limiter,
+            session=session,
+            ticker_cik_map={"AAPL": 320193},
+        )
+        result, diag = adapter.fetch(["AAPL"], date(2022, 1, 1), date(2022, 12, 31))
 
         assert result.empty
 
