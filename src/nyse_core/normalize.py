@@ -107,6 +107,51 @@ def winsorize(
     return result, diag
 
 
+def normalize_cross_section(
+    series: pd.Series,
+    *,
+    winsor_lower: float = 0.01,
+    winsor_upper: float = 0.99,
+) -> tuple[pd.Series, Diagnostics]:
+    """Canonical cross-sectional normalization: winsorize → rank_percentile.
+
+    This is the single entry point consumed by every normalizing caller
+    in both the research pipeline (`nyse_core.research_pipeline`) and the
+    live pipeline (`nyse_ats.pipeline`).  Two-stage chain:
+
+      1. Winsorize at `[winsor_lower, winsor_upper]` quantiles to cap
+         tail influence before ranking.
+      2. Rank-percentile map to [0, 1] so the downstream model sees a
+         uniform cross-sectional scale regardless of raw units.
+
+    Diagnostics from both stages are merged and returned so the caller
+    keeps a full audit trail without owning the stage sequencing.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Raw cross-sectional feature values for a single date.
+    winsor_lower, winsor_upper : float
+        Quantile bounds passed to `winsorize`.  Defaults mirror the
+        research pipeline (1st/99th percentile).
+
+    Returns
+    -------
+    (pd.Series, Diagnostics)
+        The rank-percentile result on [0, 1] (NaN preserved) plus a
+        merged diagnostics bag covering both stages.
+    """
+    diag = Diagnostics()
+
+    winsorized, w_diag = winsorize(series, lower=winsor_lower, upper=winsor_upper)
+    diag.merge(w_diag)
+
+    ranked, r_diag = rank_percentile(winsorized)
+    diag.merge(r_diag)
+
+    return ranked, diag
+
+
 def z_score(series: pd.Series) -> tuple[pd.Series, Diagnostics]:
     """Cross-sectional z-score normalization (mean=0, std=1).
 

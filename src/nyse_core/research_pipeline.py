@@ -21,7 +21,7 @@ from nyse_core.contracts import (
 from nyse_core.cost_model import estimate_cost_bps
 from nyse_core.impute import cross_sectional_impute
 from nyse_core.metrics import cagr, max_drawdown, sharpe_ratio
-from nyse_core.normalize import rank_percentile, winsorize
+from nyse_core.normalize import normalize_cross_section
 from nyse_core.schema import (
     COL_DATE,
     COL_SYMBOL,
@@ -97,19 +97,11 @@ class ResearchPipeline:
             diag.warning(src, "No features computed -- returning empty DataFrame.")
             return raw_features, diag
 
-        # Stage 2a: Winsorize at 1st/99th percentile to limit outlier influence
-        winsorized: dict[str, pd.Series] = {}
-        for col in raw_features.columns:
-            w_series, w_diag = winsorize(raw_features[col])
-            diag.merge(w_diag)
-            winsorized[col] = w_series
-        winsorized_df = pd.DataFrame(winsorized, index=raw_features.index)
-
-        # Stage 2b: Normalize each factor cross-sectionally with rank_percentile
+        # Stage 2: winsorize → rank_percentile via the canonical DRY helper
         normalized: dict[str, pd.Series] = {}
-        for col in winsorized_df.columns:
-            normed, norm_diag = rank_percentile(winsorized_df[col])
-            diag.merge(norm_diag)
+        for col in raw_features.columns:
+            normed, col_diag = normalize_cross_section(raw_features[col])
+            diag.merge(col_diag)
             normalized[col] = normed
 
         norm_df = pd.DataFrame(normalized, index=raw_features.index)

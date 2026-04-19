@@ -23,7 +23,7 @@ from nyse_core.contracts import (
 )
 from nyse_core.cv import PurgedWalkForwardCV
 from nyse_core.impute import cross_sectional_impute
-from nyse_core.normalize import rank_percentile, winsorize
+from nyse_core.normalize import normalize_cross_section
 from nyse_core.pit import enforce_pit_lags
 from nyse_core.portfolio import build_portfolio
 from nyse_core.risk import check_daily_loss
@@ -518,22 +518,19 @@ class TradingPipeline:
         return result
 
     def _normalize_features(self, features: pd.DataFrame, diag: Diagnostics) -> pd.DataFrame:
-        """Winsorize + rank-percentile normalize each numeric column.
+        """Normalize each numeric column via the canonical cross-section helper.
 
-        Matches the research pipeline chain: winsorize at 1st/99th
-        percentile, then rank-percentile to [0, 1], then drop any
-        columns that are entirely NaN (no valid data for that factor).
+        Delegates the winsorize → rank-percentile chain to
+        `nyse_core.normalize.normalize_cross_section` so the live pipeline and
+        the research pipeline agree on sequencing and defaults (TODO-8 DRY).
+        Drops any columns that are entirely NaN after normalization.
         """
         result = features.copy()
         numeric_cols = result.select_dtypes(include="number").columns.tolist()
 
         for col in numeric_cols:
-            # Stage 1: winsorize outliers
-            w_series, w_diag = winsorize(result[col])
-            diag.merge(w_diag)
-            # Stage 2: rank-percentile to [0, 1]
-            normed, norm_diag = rank_percentile(w_series)
-            diag.merge(norm_diag)
+            normed, col_diag = normalize_cross_section(result[col])
+            diag.merge(col_diag)
             result[col] = normed
 
         # Drop columns that are entirely NaN after normalization
