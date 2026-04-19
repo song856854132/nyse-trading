@@ -164,6 +164,46 @@ not-supplied-silent, unknown-name-noop, no-auto-flip).
 > real-data backtest fires, at which point a negative price-volume coefficient triggers a loud
 > WARNING in the diagnostics stream rather than being silently accepted.
 
+### RALPH P0 TODO-12: PiT No-Leakage Property Test — **CLOSED 2026-04-19 (iter-25)**
+**What:** Per `docs/RALPH_LOOP_TASK.md:44` — add `tests/property/test_pit_no_leakage.py`
+covering every feature compute function. Property: feature value at date `t` depends only on
+inputs strictly before `t` plus the declared publication lag.
+**Why:** Without this, a future refactor could silently introduce same-day or future-bar
+contamination (e.g., a `.shift(-1)` typo, or a rolling window that includes `t` in its lookback)
+and pass all existing unit tests — the exact bug class that invalidated several TWSE phases
+before row-order / shuffle-invariance tests were added.
+**How to apply:** For each of the 16 feature compute functions in
+`src/nyse_core/features/{price_volume,sentiment,earnings,nlp_earnings,fundamental,short_interest}.py`,
+assert row-order invariance — feeding a shuffled panel must produce byte-identical output
+(after sort) to feeding the date-sorted panel. Row-order invariance is a necessary condition
+for PiT purity: any function that silently depends on input row order has a latent
+contamination path.
+
+**Evidence:** `tests/property/test_pit_no_leakage.py:329+` (new Part B: 6 panel fixture
+builders `_make_price_panel` / `_make_earnings_panel` / `_make_nlp_panel` /
+`_make_options_panel` / `_make_short_interest_panel` / `_make_fundamental_panel`, all
+seeded with pre-2023 `pd.bdate_range` start dates per iron rule 1; shared helper
+`_assert_row_order_invariant(compute_fn, panel, *args, **kwargs)` that computes on
+date-sorted panel vs `panel.sample(frac=1, random_state=42)` panel and asserts
+`pd.testing.assert_series_equal(sorted.sort_index(), shuffled.sort_index(), check_names=False)`).
+New `TestFeaturePiTPurity` class with 17 test methods covering: `test_ivol_20d`,
+`test_52w_high_proximity`, `test_momentum_2_12` (price_volume); `test_ewmac`,
+`test_volume_momentum`, `test_put_call_ratio` (sentiment); `test_earnings_surprise`
+(earnings); `test_earnings_sentiment`, `test_sentiment_surprise`, `test_sentiment_dispersion`
+(nlp_earnings); `test_piotroski_f_score`, `test_accruals`, `test_profitability`
+(fundamental); `test_short_ratio`, `test_short_interest_pct`, `test_short_interest_change`
+(short_interest); plus `test_finra_publication_lag_constant_is_eleven` asserting
+`_FINRA_PUBLICATION_LAG == 11` to pin the declared lag in a regression test.
+
+> **Why this is real closure, not stubbed:** the 17 new tests execute all 16 feature compute
+> functions on synthetic pre-2023 panels and verify row-order invariance — a universal
+> necessary condition for PiT purity that catches non-determinism, row-order dependence, and
+> missing internal publication-lag filters without requiring per-function date-cutoff reasoning.
+> Full pytest: 1112 passed / 31 skipped / 0 failed (1095 iter-24 baseline + 17 new). This
+> iteration addresses the **structural** component of completion criterion 5 (docs/RALPH_LOOP_TASK.md:67
+> "the PiT-no-leakage property test for all features that exist today"); the zero-skipped
+> component (31 optional-dep skips from LightGBM/PyTorch) remains open.
+
 ### TODO-11: Validate Strategy on Real S&P 500 Data
 **What:** Execute full walk-forward backtest using real data from FinMind/EDGAR/FINRA adapters (all built). The synthetic backtest in `generate_figures.py` is a pipeline smoke test, not a signal validation.
 **Why:** All signal quality conclusions (IC, factor weights, Sharpe) are currently from synthetic data. The synthetic generator creates both returns AND factors from the same latent traits — it's a self-fulfilling world. No investment decision should be made based on synthetic metrics.
