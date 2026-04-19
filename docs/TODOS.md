@@ -158,11 +158,19 @@
 - Gates: pytest 1086 passed / 31 skipped / 0 failed (1246.44s); ruff check clean; ruff format clean (158 files); mypy clean (64 source files).
 - Iron-rule compliance: (1) no post-2023 dates — docs-only; (2) AP-6 — zero frozen thresholds modified, templates cite read-only; (3) no DB mocks — no tests added; (4) no secret leakage; (6) hash chain preserved via single `scripts/append_research_log.py` append; (7) TODO-11 + TODO-23 untouched.
 
-### TODO-21: Populate CAPACITY_AND_LIQUIDITY Placeholders
+### TODO-21: Populate CAPACITY_AND_LIQUIDITY Placeholders — **BLOCKED 2026-04-19**
 **What:** Fill §3.1 "Realized participation distribution," §3.2 "Per-stock capacity worst-basket," and §5.4 "Unwind horizon placeholder table" with numbers from real-data backtest.
 **Why:** These are the three highest-leverage LP-facing numbers in the whole doc set and they are currently explicitly "To Populate." Blocks any investor conversation and any serious capacity-vs-fee discussion.
 **How to apply:** After TODO-11 completes (real-data backtest), compute participation distribution from backtest order sizes / ADV. Worst-basket = bottom-decile ADV scenario. Unwind horizon = target-exit at 5% participation.
 **Depends on:** TODO-11 (real-data backtest).
+
+**Diagnostic Note — Why this cannot close in the current RALPH loop (2026-04-19, iter-21):**
+- `docs/RALPH_LOOP_TASK.md:13` (iron rule 7) explicitly forbids touching TODO-11 factor screening in this loop because all 6 screened factors (`ivol_20d`, `piotroski`, `earnings_surprise`, `high_52w`, `momentum_2_12`, `short_ratio`) have FAILED G0-G5 on real data and the strategy is in research, not pre-deployment.
+- TODO-21 requires participation / worst-basket / unwind numbers derived from a production-grade real-data backtest (TODO-11). No such backtest exists because TODO-11 is deferred. Populating §3.1/§3.2/§5.4 with any number sourced from anything other than a sanctioned real-data backtest would violate AP-6 (retroactive fabrication of LP-facing numerics) even though no code threshold changes.
+- `docs/RALPH_LOOP_TASK.md:73` (completion criterion 11) also requires that TODO-11 and TODO-23 remain DEFERRED / IN-PROGRESS — untouched. Any attempt to close TODO-21 by running a stand-in backtest would violate both iron rule 7 and criterion 11 simultaneously.
+- **Effect on the completion promise:** `docs/RALPH_LOOP_TASK.md:64` (completion criterion 2) requires `TODO-14 through TODO-22` all marked CLOSED in `docs/TODOS.md` with file-plus-line evidence. Canonical TODO-14..20 are CLOSED, canonical TODO-22 is CLOSED (iter-17), but canonical TODO-21 is BLOCKED by rule 7. Therefore `ALL P1 AND P2 GAPS CLOSED AND CONSOLIDATED` cannot be emitted in this RALPH loop.
+- **Reopening condition:** When iron rule 7 is lifted in a future loop and TODO-11 runs, populate §3.1 from backtest order-size histograms / ADV, §3.2 from a bottom-decile-ADV worst-basket scenario, and §5.4 from a target-5%-participation unwind horizon table. Cite the backtest result artifact hash in the research log before editing `docs/CAPACITY_AND_LIQUIDITY.md`.
+- **Not a silent skip.** This block exists so that (a) an auditor opening `docs/TODOS.md` immediately sees the specific rule that blocks closure, (b) the next loop operator does not need to rediscover the blockage, and (c) the absence of `ALL P1 AND P2 GAPS CLOSED AND CONSOLIDATED` has a cited reason rather than an unspoken one.
 
 ### TODO-22: Plain-English Executive Summary for CRO/CCO — **CLOSED 2026-04-19**
 **What:** Rewrite `NYSE_ALPHA_ONE_PAGER.md` (or add `docs/EXECUTIVE_SUMMARY_NONQUANT.md`) in CRO/CCO vocabulary: no IC/IC_IR/Romano-Wolf jargon; describe strategy, risk controls, kill switches, regulatory posture in plain English. Target audience: someone who must defend the program in a regulatory exam but is not a quant.
