@@ -115,7 +115,7 @@ than a discretionary trader's.
 | Model Validator (independent) | SR 11-7 independence, model-risk review, gate-verdict audit | `docs/MODEL_VALIDATION.md` §1.5, `docs/INDEPENDENT_VALIDATION_DRAFT.md` |
 | Chief Technology Officer | Reproducibility, CI gates, data infrastructure | `docs/REPRODUCIBILITY.md`, `docs/DATA_DICTIONARY.md`, `.github/workflows/ci.yml`, `.pre-commit-config.yaml` |
 | Internal Audit | Authorization-register coverage, retention-protected commits | `docs/GOVERNANCE_LOG.md`, `docs/AUDIT_TRAIL.md`, `docs/MLOPS_LIFECYCLE.md` |
-| External Counsel | ToS and license review for each data vendor | `docs/vendors/FINMIND.md`, `docs/vendors/EDGAR.md`, `docs/vendors/FINRA.md` |
+| External Counsel | ToS and license review for each data vendor | `docs/vendors/finmind.md`, `docs/vendors/edgar.md`, `docs/vendors/finra.md` |
 | Investment Committee | Deployment-stage graduations (paper → shadow → minimum live → scale) | `config/deployment_ladder.yaml`, `docs/GOVERNANCE_LOG.md` §5 pending authorizations |
 
 ---

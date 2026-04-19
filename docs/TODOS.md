@@ -204,6 +204,34 @@ New `TestFeaturePiTPurity` class with 17 test methods covering: `test_ivol_20d`,
 > "the PiT-no-leakage property test for all features that exist today"); the zero-skipped
 > component (31 optional-dep skips from LightGBM/PyTorch) remains open.
 
+### RALPH P2 TODO-19: Vendor Docs at Lowercase Paths — **CLOSED 2026-04-19 (iter-26)**
+**What:** Per `docs/RALPH_LOOP_TASK.md:35` — `docs/vendors/finmind.md`, `docs/vendors/edgar.md`,
+`docs/vendors/finra.md`. Each vendor doc lists: endpoint, rate limits, auth method, PiT
+publication lag, known outages, escalation contact.
+**Why:** RALPH spec is literal about lowercase paths; Linux is case-sensitive so
+`FINMIND.md` ≠ `finmind.md`. Canonical TODO-18 at `docs/TODOS.md:262-265` already produced
+the full 9-section vendor DDQ content on 2026-04-19, but under uppercase filenames.
+**How to apply:** `git mv` each uppercase → lowercase (two-step via `.tmp` to work around
+case-insensitive-aware tooling), then update every cross-reference in repo docs.
+
+**Evidence:** `docs/vendors/finmind.md:1-110`, `docs/vendors/edgar.md:1-106`,
+`docs/vendors/finra.md:1-111` (content unchanged — same 9-section template as canonical
+TODO-18 closure: purpose & pipeline usage, endpoint + escalation, auth + rate limits with
+adapter file:line cites, license/ToS, PiT publication lag with holdout guard cross-ref,
+failover plan, known data-quality issues, append-only outage log, review cadence +
+ownership). Cross-references updated in `docs/SEC_FINRA_COMPLIANCE.md:142-144` (vendor
+table) and `docs/EXECUTIVE_SUMMARY_NONQUANT.md:118` (External Counsel row). Canonical
+TODO-18 evidence block at `docs/TODOS.md:263` updated to lowercase citations and carries
+a note flagging that the immutable research-log line 33 retains the original uppercase
+paths by design (iron rule 6: hash-chained history cannot be retroactively rewritten).
+
+> **Why this is real closure, not stubbed:** `git mv` preserves full file history
+> and all six cross-references (3 file paths + 3 cross-ref edits) resolve on a
+> case-sensitive filesystem. Only the filename case changed — every byte of the
+> DDQ content is the same as the canonical TODO-18 closure on 2026-04-19.
+> No new markdown authored; no duplicate files created; CLAUDE.md's "never create
+> files unless absolutely necessary" rule respected via rename-not-duplicate.
+
 ### TODO-11: Validate Strategy on Real S&P 500 Data
 **What:** Execute full walk-forward backtest using real data from FinMind/EDGAR/FINRA adapters (all built). The synthetic backtest in `generate_figures.py` is a pipeline smoke test, not a signal validation.
 **Why:** All signal quality conclusions (IC, factor weights, Sharpe) are currently from synthetic data. The synthetic generator creates both returns AND factors from the same latent traits — it's a self-fulfilling world. No investment decision should be made based on synthetic metrics.
@@ -260,8 +288,8 @@ New `TestFeaturePiTPurity` class with 17 test methods covering: `test_ivol_20d`,
 **Why (original):** Data fields are described in FRAMEWORK §3, MODEL_VALIDATION §4.1, schema.py, and config_schema.py — four places, easy to drift. A single dictionary is the industry norm and the only workable artifact for a data-quality exam.
 
 ### TODO-18: Vendor Due-Diligence Files — **CLOSED 2026-04-19**
-**Evidence:** `docs/vendors/FINMIND.md:1-110`, `docs/vendors/EDGAR.md:1-106`, `docs/vendors/FINRA.md:1-111` — three per-vendor due-diligence files using a shared 9-section template (purpose & pipeline usage with downstream factor list + outage blast radius; endpoint + contact + escalation; auth + rate limits with adapter file:line cites; license/ToS; PiT publication lag with holdout guard cross-ref; failover plan; known data-quality issues; append-only historical outage log seeded empty; review cadence + ownership). FinMind file (primary OHLCV) documents the 30/min query-string-token auth, the regex redaction at `src/nyse_ats/data/finmind_adapter.py:266`, and the gitleaks pre-commit backstop against iron rule 4. EDGAR file (primary fundamentals) documents the User-Agent-only auth per `src/nyse_ats/data/edgar_adapter.py:158`, the 10 req/s SEC fair-access limit, and the 403-on-missing-UA response. FINRA file (primary short interest) calls out settlement_date vs publication_date and the 11-day publication lag as the highest-risk PiT failure mode (`src/nyse_ats/data/finra_adapter.py:153`). Linked from `docs/SEC_FINRA_COMPLIANCE.md` §6 "Vendor Due-Diligence Files" with a change-protocol note requiring simultaneous edits to `config/data_sources.yaml`. Research-log hash `4151b76b2772874a0d3a6988ce945b476fa0c0745240888e273c773bacbe51b3` (prev `e373889b7fa4df63faaa587f662998b2e8ee3a08445ce32b25adeb2237ee0b7d`, `results/research_log.jsonl:33`). Pytest 1086 passed / 31 skipped / 0 failed; ruff + mypy(src) green.
-**What (original):** `docs/vendors/FINMIND.md`, `docs/vendors/EDGAR.md`, `docs/vendors/FINRA.md` — each with: vendor contact, SLA terms, license/ToS summary, historical outage log, failover plan, data-quality issues observed, escalation path.
+**Evidence:** `docs/vendors/finmind.md:1-110`, `docs/vendors/edgar.md:1-106`, `docs/vendors/finra.md:1-111` — three per-vendor due-diligence files using a shared 9-section template (purpose & pipeline usage with downstream factor list + outage blast radius; endpoint + contact + escalation; auth + rate limits with adapter file:line cites; license/ToS; PiT publication lag with holdout guard cross-ref; failover plan; known data-quality issues; append-only historical outage log seeded empty; review cadence + ownership). FinMind file (primary OHLCV) documents the 30/min query-string-token auth, the regex redaction at `src/nyse_ats/data/finmind_adapter.py:266`, and the gitleaks pre-commit backstop against iron rule 4. EDGAR file (primary fundamentals) documents the User-Agent-only auth per `src/nyse_ats/data/edgar_adapter.py:158`, the 10 req/s SEC fair-access limit, and the 403-on-missing-UA response. FINRA file (primary short interest) calls out settlement_date vs publication_date and the 11-day publication lag as the highest-risk PiT failure mode (`src/nyse_ats/data/finra_adapter.py:153`). Linked from `docs/SEC_FINRA_COMPLIANCE.md` §6 "Vendor Due-Diligence Files" with a change-protocol note requiring simultaneous edits to `config/data_sources.yaml`. Research-log hash `4151b76b2772874a0d3a6988ce945b476fa0c0745240888e273c773bacbe51b3` (prev `e373889b7fa4df63faaa587f662998b2e8ee3a08445ce32b25adeb2237ee0b7d`, `results/research_log.jsonl:33`). Pytest 1086 passed / 31 skipped / 0 failed; ruff + mypy(src) green. **Filenames normalized to lowercase per RALPH P2 TODO-19 spec via `git mv` in iter-26 (2026-04-19); earlier research-log line 33 retains uppercase paths by design — hash-chained history is immutable.**
+**What (original):** `docs/vendors/finmind.md`, `docs/vendors/edgar.md`, `docs/vendors/finra.md` — each with: vendor contact, SLA terms, license/ToS summary, historical outage log, failover plan, data-quality issues observed, escalation path.
 **Why (original):** Recurring finding in algo-trading regulatory exams. FINRA 2026 priorities specifically call out third-party data governance. Also prerequisite for any LP DDQ.
 
 ### TODO-19: Governance / Decision Log — **CLOSED 2026-04-19**

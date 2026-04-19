@@ -139,9 +139,9 @@ primary artifacts a regulator or LP DDQ will request.
 
 | Vendor | Role | DD file |
 |---|---|---|
-| FinMind | Primary OHLCV source | [`docs/vendors/FINMIND.md`](vendors/FINMIND.md) |
-| SEC EDGAR | Primary fundamentals source (XBRL companyfacts) | [`docs/vendors/EDGAR.md`](vendors/EDGAR.md) |
-| FINRA | Primary short-interest source (bi-monthly) | [`docs/vendors/FINRA.md`](vendors/FINRA.md) |
+| FinMind | Primary OHLCV source | [`docs/vendors/finmind.md`](vendors/finmind.md) |
+| SEC EDGAR | Primary fundamentals source (XBRL companyfacts) | [`docs/vendors/edgar.md`](vendors/edgar.md) |
+| FINRA | Primary short-interest source (bi-monthly) | [`docs/vendors/finra.md`](vendors/finra.md) |
 
 Change protocol: any endpoint / auth / rate-limit / publication-lag change
 MUST update the DD file and `config/data_sources.yaml` in the same commit.
