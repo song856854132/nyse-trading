@@ -7,6 +7,56 @@
 > [CAPACITY_AND_LIQUIDITY.md](CAPACITY_AND_LIQUIDITY.md) (AUM capacity + unwind)
 > — both expose TODO-10 / TODO-11 as blocking items before any promotion.
 
+## RALPH_LOOP_TASK → canonical TODOS.md cross-reference (iter-22, 2026-04-19)
+
+> **Why this table exists.** `docs/RALPH_LOOP_TASK.md` defines its own P1/P2 TODO list at lines 21-38 using numbers `TODO-3` through `TODO-22`. Those numbers do **not** match the canonical numbering in this file — this file predates the RALPH loop and already used `TODO-3`, `TODO-4`, `TODO-7` for different items (VectorBT version strategy, structured logging, data freshness). Without a mapping, completion criteria 1 and 2 (`docs/RALPH_LOOP_TASK.md:63-64`: "`TODO-3 through TODO-8` / `TODO-14 through TODO-22` all marked CLOSED in docs/TODOS.md") cannot be evaluated mechanically. The table below lets an auditor verify every RALPH P1/P2 item has closure evidence in this file and cites the evidence line, regardless of the surface TODO number.
+>
+> **What this is not.** This table does not edit, renumber, or merge any existing TODO. Canonical TODOS.md numbering is preserved as-is. The table is a read-only lookup from "the item RALPH_LOOP_TASK.md calls TODO-N" to "the section of this file that documents closure." AP-6 holds: no thresholds moved.
+
+### P1 — `docs/RALPH_LOOP_TASK.md` lines 21-26
+
+| RALPH # | RALPH scope | Canonical TODOS.md entry | Status | Primary evidence |
+|---|---|---|:---:|---|
+| TODO-3 | GitHub Actions CI (pytest + ruff + mypy + secret scan, Py 3.11/3.12 matrix) | `TODO-6` (line 42) | CLOSED 2026-04-18 | `.github/workflows/ci.yml:1-64` |
+| TODO-4 | `.pre-commit-config.yaml` (ruff / ruff-format / mypy / gitleaks + holdout path guard) | `TODO-30` (line 281) | CLOSED 2026-04-18 | `.pre-commit-config.yaml`, `scripts/check_holdout_guard.py` |
+| TODO-5 | `uv.lock` generated via `uv lock`, Python pin in `docs/REPRODUCIBILITY.md` | `TODO-5` (line 18) | CLOSED 2026-04-18 | `uv.lock:1-4504`, `docs/REPRODUCIBILITY.md:15-64` |
+| TODO-6 | `tests/property/test_no_holdout_leakage.py` (Hypothesis + `HoldoutLeakageError` + DB scan) | `TODO-34` (line 306) | CLOSED 2026-04-19 | `src/nyse_core/contracts.py:54-92`, `tests/property/test_no_holdout_leakage.py:1-288` |
+| TODO-7 | `tests/integration/test_research_log_chain.py` (SHA-256 chain verification + first-break line number) | `TODO-35` (line 314) | CLOSED 2026-04-19 | `tests/integration/test_research_log_chain.py:1-232` |
+| TODO-8 | Refactor `src/nyse_ats/pipeline.py` to single `normalize_cross_section` helper | `TODO-8` (line 56) | CLOSED 2026-04-19 | `src/nyse_core/normalize.py:110-153`, `src/nyse_ats/pipeline.py:518-533` |
+
+**Criterion 1 verdict:** PASS. Every RALPH P1 item has closure evidence in `docs/TODOS.md` citing a concrete `file:line` range. Canonical items `TODO-3` (VectorBT version strategy), `TODO-4` (structured logging), and `TODO-7` (data-freshness monitor) remain OPEN but are **out of RALPH P1 scope** — they were added to this file before the RALPH loop was scoped and are tracked for future work, not for this loop's completion promise.
+
+### P2 — `docs/RALPH_LOOP_TASK.md` lines 30-38
+
+| RALPH # | RALPH scope | Canonical TODOS.md entry | Status | Primary evidence |
+|---|---|---|:---:|---|
+| TODO-14 | `docs/RISK_REGISTER.md` (F1-F8 + A1-A12 rows, frozen thresholds) | `TODO-14` (line 111) | CLOSED 2026-04-19 | `docs/RISK_REGISTER.md` |
+| TODO-15 | `docs/DATA_DICTIONARY.md` (one section per source) | `TODO-17` (line 130) | CLOSED 2026-04-19 | `docs/DATA_DICTIONARY.md` |
+| TODO-16 | `docs/REPRODUCIBILITY.md` (uv sync, python pin, DB rebuild, chain verify, 6-screen rerun) | `TODO-16` (line 124) | CLOSED 2026-04-19 | `docs/REPRODUCIBILITY.md` |
+| TODO-17 | `docs/GOVERNANCE_LOG.md` (append-only, 6-of-6 factor failure first entry) | `TODO-19` (line 140) | CLOSED 2026-04-19 | `docs/GOVERNANCE_LOG.md` |
+| TODO-18 | `docs/EXECUTIVE_SUMMARY_NONQUANT.md` (one page, plain English) | `TODO-22` (line 167) | CLOSED 2026-04-19 | `docs/EXECUTIVE_SUMMARY_NONQUANT.md:1-115` |
+| TODO-19 | `docs/vendors/finmind.md` + `docs/vendors/edgar.md` + `docs/vendors/finra.md` | `TODO-18` (line 135) | CLOSED 2026-04-19 | `docs/vendors/finmind.md`, `docs/vendors/edgar.md`, `docs/vendors/finra.md` |
+| TODO-20 | `docs/templates/factor_screen_memo.md` | `RALPH Internal TODO-20` (line 195) | CLOSED 2026-04-19 | `docs/templates/factor_screen_memo.md:1-244` |
+| TODO-21 | Update `docs/FRAMEWORK_AND_PIPELINE.md` + regen PDF via `scripts/regen_framework_pdf.sh` | `RALPH Criterion 8` (line 198) | CLOSED 2026-04-19 | `scripts/regen_framework_pdf.sh:1-62`, `config/puppeteer.config.js:1-42`, `docs/FRAMEWORK_AND_PIPELINE.pdf` (SHA-256 `a13b0cb8...`) |
+| TODO-22 | Update `docs/OUTCOME_VS_FORECAST.md` with predicted vs realized Sharpe per failed factor | `RALPH Internal TODO-22` (line 181) | CLOSED 2026-04-19 | `docs/OUTCOME_VS_FORECAST.md:54-91` |
+
+**Criterion 2 verdict:** PASS for every RALPH P2 item. However, canonical `TODO-21` (Capacity placeholders) is **not** a RALPH P2 item — it is an independent TODOS.md item that happens to share the number `21`. Canonical `TODO-21` remains BLOCKED because it depends on canonical `TODO-11` (real-data backtest), and `docs/RALPH_LOOP_TASK.md:13` iron rule 7 forbids touching `TODO-11` in this loop. See the standalone diagnostic block on canonical `TODO-21` at line 161 for the cited reasoning.
+
+### How this affects the completion promise
+
+- Every **RALPH**-scope P1/P2 item has CLOSED evidence in this file.
+- Every **canonical-numbered** item that happens to share a number with a RALPH P1/P2 item — but is *not* a RALPH item — is out of scope for criteria 1 and 2. Canonical `TODO-3`, `TODO-4`, `TODO-7`, and `TODO-21` fall in this bucket.
+- **Interpretation rule for criteria 1 and 2:** read "`TODO-N`" in `docs/RALPH_LOOP_TASK.md:63-64` as the RALPH-scope item defined at `docs/RALPH_LOOP_TASK.md:21-38`, not the canonical TODOS.md item with the same surface number. The table above is the bridge.
+- **Other completion criteria** (3 CI green, 4 pre-commit pass, 5 pytest zero-skipped with the three named tests present, 6 ruff + mypy zero, 7 chain verifies, 8 PDF regenerated, 9 the five named docs exist with real content, 10 no `results/holdout/` + no post-2023 reachability, 11 `TODO-11` + `TODO-23` untouched) are independent of the surface-number ambiguity.
+
+### Current blockers to the completion phrase `ALL P1 AND P2 GAPS CLOSED AND CONSOLIDATED`
+
+1. **Criterion 5 ("Pytest exits zero with zero skipped ...").** Most recent run: 1086 passed / **31 skipped** / 0 failed (iter-20). Skips are almost entirely optional-dependency gates (LightGBM, PyTorch absent in the dev environment). This is not a correctness failure but literally violates "zero skipped." Closing it means either installing those deps in the dev install path or rewriting the affected tests to not skip. Either direction is a separate future TODO.
+2. **Criterion 6 ("Ruff and mypy both exit zero").** Most recent `ruff check src/ tests/ scripts/` surfaces **40 lint errors** across tracked `scripts/*.py` files (import ordering, unused imports, line length, f-string without placeholders, `datetime.UTC`, `zip(..., strict=...)`). mypy `src/` is clean. Pre-commit hooks skip Python checks on docs-only commits, so these accumulated without catching. Closing this is a mechanical lint pass.
+3. **Criterion 3 ("GitHub Actions CI on the current branch is green").** Cannot be verified inside the RALPH loop without network access to GitHub. Noted as an external verification step.
+
+Until all three of those blockers are independently closed **in the same commit** as the other eleven checks, `ALL P1 AND P2 GAPS CLOSED AND CONSOLIDATED` does **not** emit.
+
 ## Phase 0
 
 ### TODO-4: Structured Logging Standard for nyse_ats
