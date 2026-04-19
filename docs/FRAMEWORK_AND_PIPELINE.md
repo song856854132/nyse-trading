@@ -1271,3 +1271,7 @@ These rules were derived from 63 phases of empirical testing on the TWSE project
 7. **Every factor needs a friction hypothesis.** If you can't explain WHY a factor works (what market friction or behavioral bias it exploits), it's probably curve-fitting.
 
 8. **The Diagnostics pattern replaces logging.** `(result, Diagnostics)` tuples provide full traceability without any I/O side effects in the core computation modules.
+
+---
+
+*Related: [RISK_REGISTER.md](RISK_REGISTER.md) (canonical risks, F1-F8 + A1-A12 + structural) | [RISK_LIMITS.md](RISK_LIMITS.md) (operational limits) | [MODEL_VALIDATION.md](MODEL_VALIDATION.md) | [ABANDONMENT_CRITERIA.md](ABANDONMENT_CRITERIA.md) | [TODOS.md](TODOS.md)*

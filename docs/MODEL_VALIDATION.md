@@ -381,4 +381,4 @@ below must be checked and initialed by the validator.
 
 ---
 
-*Related: [FRAMEWORK_AND_PIPELINE.md](FRAMEWORK_AND_PIPELINE.md) (architecture) | [NYSE_ALPHA_TECHNICAL_BRIEF.md](NYSE_ALPHA_TECHNICAL_BRIEF.md) (strategy) | [NYSE_ALPHA_RESEARCH_RECORD.md](NYSE_ALPHA_RESEARCH_RECORD.md) (development log) | [MLOPS_LIFECYCLE.md](MLOPS_LIFECYCLE.md) (ops) | [AUDIT_TRAIL.md](AUDIT_TRAIL.md) (change log)*
+*Related: [FRAMEWORK_AND_PIPELINE.md](FRAMEWORK_AND_PIPELINE.md) (architecture) | [NYSE_ALPHA_TECHNICAL_BRIEF.md](NYSE_ALPHA_TECHNICAL_BRIEF.md) (strategy) | [NYSE_ALPHA_RESEARCH_RECORD.md](NYSE_ALPHA_RESEARCH_RECORD.md) (development log) | [MLOPS_LIFECYCLE.md](MLOPS_LIFECYCLE.md) (ops) | [AUDIT_TRAIL.md](AUDIT_TRAIL.md) (change log) | [RISK_REGISTER.md](RISK_REGISTER.md) (canonical risks, SR 11-7 §VI)*

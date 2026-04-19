@@ -59,7 +59,7 @@
 **What:** Refactor `src/nyse_ats/pipeline.py` so it imports one normalization helper from `nyse_core.normalize` rather than calling `winsorize` and `rank_percentile` separately. Add a single entry point named `normalize_cross_section` that returns the rank-percentile result plus `Diagnostics`. Delete the duplicated call path. Update unit tests.
 **Why:** DRY violation with train/serve skew risk — any future change to the normalization chain (different winsor bounds, additional stages, alternative ranking) would have had to be mirrored across two separate call sites in the live pipeline and the research pipeline. Consolidating to a single helper eliminates that failure mode and keeps both pipelines locked to the same semantics automatically.
 **How was it done:** Added `normalize_cross_section` to `normalize.py` alongside the existing primitives so callers still have raw `winsorize`/`rank_percentile` when they need them. The helper is pure (no I/O), returns `(Series, Diagnostics)`, and merges diagnostics from both stages so the audit trail is unchanged. Both pipeline call sites were shrunk to a single per-column invocation. The equivalence test (`test_matches_manual_two_stage_chain`) locks behavior against regression: `normalize_cross_section(s)` must equal `rank_percentile(winsorize(s))` element-wise. This is iron-rule-2 protection (no silent threshold change).
-**Depends on:** Prior ralph-loop iterations closing TODO-3 through TODO-7 (all done). Unblocks completion criterion 1 ("TODO-3 through TODO-8 all marked CLOSED"). All P1 items now complete — next iteration moves to P2 governance (TODO-14 RISK_REGISTER first).
+**Depends on:** Prior ralph-loop iterations closing TODO-3 through TODO-7 (all done). Unblocks completion criterion 1 ("TODO-3 through TODO-8 all marked CLOSED"). All P1 items now complete — P2 governance block in progress (TODO-14 CLOSED 2026-04-19 via iter-10; next: TODO-15 attribution template).
 
 ## Investigation Findings (2026-04-17)
 
@@ -108,7 +108,8 @@
 **How to apply:** Add §1.5 "Independence statement" to `MODEL_VALIDATION.md`. Fields: developer, validator, validation date, validator independence (yes/no/partial), planned external review date. Update at each material model change.
 **Depends on:** Nothing. ~15 min edit.
 
-### TODO-14: Formal Risk Register
+### TODO-14: Formal Risk Register — **CLOSED 2026-04-19**
+**Evidence:** `docs/RISK_REGISTER.md:1-184` (31 rows: F1-F8 + A1-A12 + 11 structural/residual across M/D/E/O/G; severity×likelihood 1-5 rubric, score 1-25; AP-6 amendment log). Canonical links added in `docs/MODEL_VALIDATION.md:384` and `docs/FRAMEWORK_AND_PIPELINE.md:165-167` as instructed. Research-log hash `c6d18ee44c13408a48c38cfe7bc9f095a1a8681cbc2738671f218de2c4f9cc59` (iter-10, prev `dc0312d4...9e9d0452`, `results/research_log.jsonl:29`). Pytest 1075 passed / 31 skipped / 0 failed; ruff + mypy(src) green.
 **What:** Create `docs/RISK_REGISTER.md` — single table of known risks with columns: ID, description, category (model/data/execution/operational), severity (1-5), likelihood (1-5), mitigation, owner, review date.
 **Why:** Risks are currently scattered across MODEL_VALIDATION §3.4, FRAMEWORK §1.2, CAPACITY §6, AUDIT_TRAIL. Scattered risks get forgotten. Enterprise review expects one table where severity × likelihood is comparable across risks. SR 11-7 §VI.
 **How to apply:** Seed with ~20 risks pulled from existing "known limits" sections. Assign owner + review cadence (quarterly). Link from MODEL_VALIDATION and FRAMEWORK as canonical source.
