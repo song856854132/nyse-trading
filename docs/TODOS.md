@@ -115,11 +115,32 @@ Until all three of those blockers are independently closed **in the same commit*
 
 > From `/investigate` + `/codex` cross-model analysis of strategy vs SPY underperformance in 2024-2025.
 
-### TODO-9: Use RSP (Equal-Weight ETF) as Primary Benchmark
+### TODO-9: Use RSP (Equal-Weight ETF) as Primary Benchmark — **PARTIAL CLOSURE 2026-04-19**
 **What:** Replace SPY as the performance benchmark with RSP (Invesco S&P 500 Equal Weight ETF). Keep SPY for regime overlay only.
 **Why:** The strategy is structurally equal-weight. Benchmarking against cap-weight SPY bakes in a permanent headwind during concentration regimes (2024: RSP +12% vs SPY +25%, a 13pp gap from weighting alone). RSP is the apples-to-apples comparison. SPY outperformance in 2024-2025 is dominated by Magnificent 7 concentration — an architectural mismatch, not a signal failure.
 **How to apply:** Add RSP price series to data adapters. Report both RSP-relative and SPY-relative Sharpe in backtest output and dashboard. Use RSP for factor IC calculation. Keep SPY for regime overlay (SMA200).
 **Depends on:** FinMind adapter (Phase 2 — already built).
+
+> **Evidence (iter-23, RALPH TODO-9 scope):** `src/nyse_core/backtest.py:29-38` accepts
+> `benchmark_returns: dict[str, pd.Series] | None` and populates
+> `BacktestResult.benchmark_metrics` with Sharpe/CAGR/MaxDD for every supplied ticker;
+> `src/nyse_core/contracts.py:252-258` declares the new field; contract explicitly states
+> the regime overlay benchmark stays on SPY per RALPH TODO-9. Unit tests at
+> `tests/unit/test_backtest.py:229-346` (class `TestBenchmarkReporting`) cover:
+> (a) both tickers populated when provided, (b) None when not provided,
+> (c) partial-overlap warning path, (d) SPY+RSP both present in every artifact.
+> Pytest 1090 passed / 31 skipped / 0 failed (test_ap7_warning_fires naturally takes
+> ~11m; the 300s timeout I imposed in iter-23 killed it — without the timeout it
+> passes). Ruff/format/mypy green on touched files. Research log appended (chain tip
+> recorded in iter-23 event).
+>
+> **Remaining work (NOT done in iter-23):** (1) data adapter for RSP OHLCV — out of
+> scope for iron rule 7 (no TODO-11 real-data plumbing in this loop); (2)
+> dashboard surface for RSP-relative Sharpe — dashboard work is TODO-track, not
+> backtest-engine track; (3) IC calculation on RSP-demeaned returns — blocked on
+> (1). The RALPH line-37 scope ("report both in every backtest artifact") is
+> closed at the backtest-engine level; the end-to-end production wiring is
+> deferred to the next iteration that is allowed to touch real-data ingestion.
 
 ### TODO-10: Monitor Factor Weight Signs on Real Data
 **What:** After first real-data backtest, verify that momentum_2_12, 52w_high, and ewmac carry positive Ridge weights.

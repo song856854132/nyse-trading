@@ -224,3 +224,125 @@ class TestWalkForwardBacktest:
         )
         fold_msgs = [m for m in diag.messages if "Fold" in m.message]
         assert len(fold_msgs) >= 1
+
+
+class TestBenchmarkReporting:
+    """RALPH TODO-9: SPY + RSP equal-weight benchmarks reported side-by-side."""
+
+    def _make_benchmarks(self, index: pd.DatetimeIndex, seed: int = 7) -> dict[str, pd.Series]:
+        rng = np.random.default_rng(seed)
+        # Cap-weighted SPY-proxy and equal-weight RSP-proxy are two distinct
+        # return streams with moderate correlation — enough to produce
+        # different Sharpe values in the result.
+        spy = pd.Series(rng.normal(0.0004, 0.01, len(index)), index=index, name="SPY")
+        rsp = pd.Series(rng.normal(0.0003, 0.012, len(index)), index=index, name="RSP")
+        return {"SPY": spy, "RSP": rsp}
+
+    def test_benchmark_metrics_populated_when_provided(self):
+        features, returns = _make_synthetic_data(n_days=2000)
+        cv = PurgedWalkForwardCV(
+            n_folds=2,
+            min_train_days=504,
+            test_days=126,
+            purge_days=5,
+            embargo_days=5,
+        )
+        benchmarks = self._make_benchmarks(features.index)
+        result, _ = run_walk_forward_backtest(
+            feature_matrix=features,
+            returns=returns,
+            cv=cv,
+            model_factory=RidgeModel,
+            allocator_fn=_simple_allocator,
+            risk_fn=_passthrough_risk,
+            cost_fn=_zero_cost,
+            benchmark_returns=benchmarks,
+        )
+        assert result.benchmark_metrics is not None
+        assert set(result.benchmark_metrics.keys()) == {"SPY", "RSP"}
+        for ticker in ("SPY", "RSP"):
+            m = result.benchmark_metrics[ticker]
+            assert set(m.keys()) == {"sharpe", "cagr", "max_drawdown"}
+            assert np.isfinite(m["sharpe"])
+            assert np.isfinite(m["cagr"])
+            assert np.isfinite(m["max_drawdown"])
+            assert m["max_drawdown"] <= 0.0
+
+    def test_benchmark_metrics_none_when_not_provided(self):
+        features, returns = _make_synthetic_data(n_days=2000)
+        cv = PurgedWalkForwardCV(
+            n_folds=2,
+            min_train_days=504,
+            test_days=126,
+            purge_days=5,
+            embargo_days=5,
+        )
+        result, _ = run_walk_forward_backtest(
+            feature_matrix=features,
+            returns=returns,
+            cv=cv,
+            model_factory=RidgeModel,
+            allocator_fn=_simple_allocator,
+            risk_fn=_passthrough_risk,
+            cost_fn=_zero_cost,
+        )
+        assert result.benchmark_metrics is None
+
+    def test_partial_overlap_warns_but_still_reports(self):
+        """Benchmark with <50% overlap must emit a warning but still populate."""
+        features, returns = _make_synthetic_data(n_days=2000)
+        cv = PurgedWalkForwardCV(
+            n_folds=2,
+            min_train_days=504,
+            test_days=126,
+            purge_days=5,
+            embargo_days=5,
+        )
+        full_bench = self._make_benchmarks(features.index)
+        # Truncate RSP to the first 20 days only — far below the OOS window.
+        short_rsp = full_bench["RSP"].iloc[:20]
+        benchmarks = {"SPY": full_bench["SPY"], "RSP": short_rsp}
+        result, diag = run_walk_forward_backtest(
+            feature_matrix=features,
+            returns=returns,
+            cv=cv,
+            model_factory=RidgeModel,
+            allocator_fn=_simple_allocator,
+            risk_fn=_passthrough_risk,
+            cost_fn=_zero_cost,
+            benchmark_returns=benchmarks,
+        )
+        warn_msgs = [m for m in diag.messages if "RSP" in m.message and "OOS dates" in m.message]
+        assert len(warn_msgs) >= 1, "Expected warning for short-overlap RSP benchmark"
+        assert result.benchmark_metrics is not None
+        assert "RSP" in result.benchmark_metrics
+        assert "SPY" in result.benchmark_metrics
+
+    def test_spy_rsp_reported_in_every_artifact(self):
+        """Contract: RALPH TODO-9 requires BOTH SPY and RSP in artifact."""
+        features, returns = _make_synthetic_data(n_days=2000, seed=101)
+        cv = PurgedWalkForwardCV(
+            n_folds=2,
+            min_train_days=504,
+            test_days=126,
+            purge_days=5,
+            embargo_days=5,
+        )
+        benchmarks = self._make_benchmarks(features.index, seed=11)
+        result, _ = run_walk_forward_backtest(
+            feature_matrix=features,
+            returns=returns,
+            cv=cv,
+            model_factory=RidgeModel,
+            allocator_fn=_simple_allocator,
+            risk_fn=_passthrough_risk,
+            cost_fn=_zero_cost,
+            benchmark_returns=benchmarks,
+        )
+        # Both benchmarks must be present with non-None metrics.
+        assert result.benchmark_metrics is not None
+        assert "SPY" in result.benchmark_metrics
+        assert "RSP" in result.benchmark_metrics
+        # SPY and RSP draw from different distributions so their Sharpes
+        # should not be identical by coincidence.
+        assert result.benchmark_metrics["SPY"]["sharpe"] != result.benchmark_metrics["RSP"]["sharpe"]

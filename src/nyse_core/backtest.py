@@ -34,6 +34,7 @@ def run_walk_forward_backtest(
     allocator_fn: Callable,
     risk_fn: Callable,
     cost_fn: Callable,
+    benchmark_returns: dict[str, pd.Series] | None = None,
 ) -> tuple[BacktestResult, Diagnostics]:
     """Execute a rigorous walk-forward backtest.
 
@@ -57,6 +58,14 @@ def run_walk_forward_backtest(
     cost_fn : Callable
         ``cost_fn(weights_prev: np.ndarray, weights_new: np.ndarray) -> float``
         computes transaction cost for the weight change.
+    benchmark_returns : dict[str, pd.Series] | None
+        Optional mapping from benchmark ticker (e.g. "SPY", "RSP") to a daily
+        return series. When supplied, the result's ``benchmark_metrics``
+        field is populated with Sharpe/CAGR/MaxDD for each benchmark computed
+        over the same OOS date range as the strategy. Per RALPH TODO-9 the
+        caller is expected to pass BOTH "SPY" and "RSP" (the equal-weight
+        peer) so every backtest artifact reports both. The regime overlay
+        benchmark is unaffected and continues to use SPY inside ``risk.py``.
 
     Returns
     -------
@@ -169,6 +178,40 @@ def run_walk_forward_backtest(
     if last_model is not None:
         per_factor_contrib = last_model.get_feature_importance()
 
+    # Benchmark metrics (RALPH TODO-9). Compute Sharpe/CAGR/MaxDD over the
+    # same OOS date range for every benchmark the caller supplies. If the
+    # benchmark series doesn't overlap the OOS window, emit a warning rather
+    # than silently dropping the benchmark — a missing benchmark is a data
+    # issue the reviewer must see, not a silent zero.
+    benchmark_metrics: dict[str, dict[str, float]] | None = None
+    if benchmark_returns:
+        benchmark_metrics = {}
+        oos_index = combined_returns.index
+        for ticker, bench_series in benchmark_returns.items():
+            aligned = bench_series.reindex(oos_index).dropna()
+            if len(aligned) < max(2, int(0.5 * len(oos_index))):
+                diag.warning(
+                    src,
+                    f"Benchmark {ticker}: only {len(aligned)}/{len(oos_index)} "
+                    f"OOS dates have data; metrics may be unreliable.",
+                    benchmark=ticker,
+                    overlap=len(aligned),
+                    oos_len=len(oos_index),
+                )
+            bench_sharpe, _ = sharpe_ratio(aligned)
+            bench_cagr, _ = cagr(aligned)
+            bench_mdd, _ = max_drawdown(aligned)
+            benchmark_metrics[ticker] = {
+                "sharpe": float(bench_sharpe),
+                "cagr": float(bench_cagr),
+                "max_drawdown": float(bench_mdd),
+            }
+        diag.info(
+            src,
+            "Benchmark metrics computed: "
+            + ", ".join(f"{t}=Sharpe {m['sharpe']:.3f}" for t, m in benchmark_metrics.items()),
+        )
+
     result = BacktestResult(
         daily_returns=combined_returns,
         oos_sharpe=oos_sharpe_val,
@@ -178,6 +221,7 @@ def run_walk_forward_backtest(
         cost_drag_pct=oos_cost_drag,
         per_fold_sharpe=per_fold_sharpe,
         per_factor_contribution=per_factor_contrib,
+        benchmark_metrics=benchmark_metrics,
     )
 
     diag.info(

@@ -249,6 +249,13 @@ class BacktestResult:
     bootstrap_ci_lower: float | None = None
     bootstrap_ci_upper: float | None = None
     romano_wolf_p_values: dict[str, float] | None = None
+    # Benchmark metrics keyed by ticker (e.g. "SPY", "RSP"); each value is a
+    # dict with keys {"sharpe", "cagr", "max_drawdown"} computed over the same
+    # OOS date range as ``daily_returns``. Populated by
+    # ``run_walk_forward_backtest`` when ``benchmark_returns`` is supplied.
+    # Per RALPH TODO-9: RSP is the equal-weight peer reported ALONGSIDE SPY;
+    # neither benchmark changes the regime overlay which stays on SPY.
+    benchmark_metrics: dict[str, dict[str, float]] | None = None
 
 
 @dataclass(frozen=True)
