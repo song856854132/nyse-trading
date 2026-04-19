@@ -129,6 +129,26 @@ FINRA's 2026 priorities emphasize algorithmic trading controls and AI model gove
 
 ---
 
+## 6. Vendor Due-Diligence Files
+
+Third-party data governance is a recurring finding in algo-trading exams and is
+explicit in FINRA 2026 priorities. Per-vendor due-diligence files document
+endpoint, auth, rate limits, PiT publication lag, license/ToS summary, failover
+plan, known data-quality issues, and append-only outage logs. These are the
+primary artifacts a regulator or LP DDQ will request.
+
+| Vendor | Role | DD file |
+|---|---|---|
+| FinMind | Primary OHLCV source | [`docs/vendors/FINMIND.md`](vendors/FINMIND.md) |
+| SEC EDGAR | Primary fundamentals source (XBRL companyfacts) | [`docs/vendors/EDGAR.md`](vendors/EDGAR.md) |
+| FINRA | Primary short-interest source (bi-monthly) | [`docs/vendors/FINRA.md`](vendors/FINRA.md) |
+
+Change protocol: any endpoint / auth / rate-limit / publication-lag change
+MUST update the DD file and `config/data_sources.yaml` in the same commit.
+Outage-log rows are append-only.
+
+---
+
 ## Appendix: Applicable Regulations Reference
 
 | Regulation | Full Title | Issuer | Year |
