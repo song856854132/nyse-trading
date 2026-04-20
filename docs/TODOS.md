@@ -404,6 +404,98 @@ ternary conversion.
 > untouched; TODO-32 (EDGAR rewrite deferral) marked CLOSED below
 > since this iter completes it (iron rule 7).
 
+> **[RALPH-LOOP iter-29 closure block — 2026-04-20]**
+>
+> **What:** Closed completion criterion 8 (`docs/RALPH_LOOP_TASK.md:68` —
+> "`docs/FRAMEWORK_AND_PIPELINE.pdf` has been regenerated today via
+> `scripts/regen_framework_pdf.sh` and committed") for calendar day
+> **2026-04-20**. The prior regen was on 2026-04-19 (iter-21 commit
+> `8f1005d`, SHA-256 `a13b0cb8...`); under strict reading of the
+> criterion's `today` language, that regen aged out when the loop
+> crossed midnight into 2026-04-20.
+>
+> **Why:** The RALPH protocol demands all eleven criteria be true
+> simultaneously in the commit that emits the completion promise.
+> After the user configured the GitHub remote and pushed
+> `origin/master` earlier this session (README commit `32fdf00` on top
+> of iter-28 tip `8bc2d1c`), GH Actions CI landed green in 2m 21s
+> (criterion 3 satisfied for the first time). At that moment all
+> criteria held except criterion 8, which had slipped from the prior
+> calendar day. Regenerating today closes the last gap.
+>
+> **How to apply:** Ran `scripts/regen_framework_pdf.sh`. The script
+> is deterministic w.r.t. its input markdown but embeds a generation
+> timestamp, so a same-day regen with no `docs/FRAMEWORK_AND_PIPELINE.md`
+> changes still produces a byte-different PDF — that is by design; the
+> timestamp is the auditor-visible proof of "regenerated today."
+>
+> **Evidence (2 artifacts):**
+> - `docs/FRAMEWORK_AND_PIPELINE.pdf` — regenerated 2026-04-20 22:32 KST,
+>   1787534 bytes (same size as prior because md content unchanged),
+>   new SHA-256 `b55cb47be528b6a7e5e007f4b2d697099f195806dc6e2273f72364cdf1675538`
+>   (vs prior `a13b0cb8...`).
+> - `docs/TODOS.md` — this closure block.
+>
+> **Simultaneous verification of the other ten criteria on this
+> iter-29 commit:**
+> - **Criterion 1:** RALPH-scope TODO-3..TODO-8 all marked CLOSED with
+>   evidence in this file (§Phase 0, §Phase 1, §Phase 2). Re-verified
+>   by inspection; no changes since iter-20.
+> - **Criterion 2:** RALPH-scope TODO-14..TODO-22 all marked CLOSED
+>   with evidence in this file. Re-verified; no changes.
+> - **Criterion 3:** GH Actions CI on `origin/master` tip `32fdf00`
+>   green (2m 21s). This iter-29 commit will land on top of `32fdf00`
+>   and trigger a fresh CI run — the completion promise emits only
+>   after that run also lands green.
+> - **Criterion 4:** `pre-commit run --files <no-op file>` passed
+>   (gitleaks PASS, holdout-path-guard PASS, other hooks correctly
+>   "Skipped" for non-code files) — re-verified immediately before
+>   this iter's commit.
+> - **Criterion 5:** `pytest` full suite on iter-28 commit returned
+>   `1143 passed, 0 skipped, 0 failed, 71 warnings in 1292.84s`. This
+>   iter-29 commit only touches `docs/*` and `results/*` — no test
+>   behavior affected. Hooks will verify research-log chain integrity
+>   as a belt-and-suspenders cross-check.
+> - **Criterion 6:** `ruff check src tests` + `ruff format --check
+>   src tests` + `mypy src` all green on iter-28 commit; this iter
+>   changes no `src/` or `tests/` files so the verdict carries forward.
+> - **Criterion 7:** research-log chain verifies end-to-end — the
+>   iter-29 event appends off iter-28 tip `f6fb69a1...25f28e70` →
+>   new tip `28e26a27f6707204...2be29e5b`. `pre-commit` includes the
+>   `research-log hash chain verification (iron rule 6)` hook, which
+>   re-walks the full chain on every commit touching the log.
+> - **Criterion 8:** closed by this iter (evidence above).
+> - **Criterion 9:** `docs/RISK_REGISTER.md`, `docs/DATA_DICTIONARY.md`,
+>   `docs/REPRODUCIBILITY.md`, `docs/GOVERNANCE_LOG.md`,
+>   `docs/EXECUTIVE_SUMMARY_NONQUANT.md` all exist with real content
+>   (closed in iters 10-14 and 20; no placeholder sections, per-file
+>   evidence in their respective TODO blocks).
+> - **Criterion 10:** `results/holdout/` does not exist (verified via
+>   `ls results/holdout` — empty / nonexistent). No code path in
+>   `src/nyse_core/` admits dates > 2023-12-31; `HoldoutLeakageError`
+>   guards cover every surface per TODO-34 evidence. The only
+>   references to "2024"/"2025" in `src/nyse_core/` are comments in
+>   `contracts.py:44` documenting the holdout policy — documentation,
+>   not reachable logic.
+> - **Criterion 11:** canonical TODO-11 (`docs/TODOS.md:294+`,
+>   "Validate Strategy on Real S&P 500 Data") and canonical TODO-23
+>   (`docs/TODOS.md:440+`, regime-conditional ivol paper trade)
+>   both remain in DEFERRED state. Not touched in this iter.
+>
+> **Completion promise status:** WILL EMIT after this iter-29 commit
+> is pushed to `origin/master` and GH Actions CI lands green on the
+> new tip. That is the only gate remaining.
+>
+> **Iron rule compliance:** no date logic touched (PDF content reflects
+> the already-in-window `FRAMEWORK_AND_PIPELINE.md` source); no config
+> thresholds touched (AP-6); no tests touched (DB mocks n/a); no
+> adapter/network code touched (secret leakage n/a); all six
+> pre-commit hooks run on this commit (no `--no-verify`); this iter-29
+> event appends off prev hash
+> `f6fb69a1e8701bb9f5815270c379da20da22ab9d9f2f9afe0cfea0db25f28e70`;
+> canonical TODO-11 at `docs/TODOS.md:294+` and canonical TODO-23 at
+> `docs/TODOS.md:440+` untouched.
+
 ### TODO-11: Validate Strategy on Real S&P 500 Data
 **What:** Execute full walk-forward backtest using real data from FinMind/EDGAR/FINRA adapters (all built). The synthetic backtest in `generate_figures.py` is a pipeline smoke test, not a signal validation.
 **Why:** All signal quality conclusions (IC, factor weights, Sharpe) are currently from synthetic data. The synthetic generator creates both returns AND factors from the same latent traits — it's a self-fulfilling world. No investment decision should be made based on synthetic metrics.
