@@ -335,7 +335,7 @@ def screen_factor(
     # ── Evaluate gates ───────────────────────────────────────────────────
     # Build metrics dict with factor_name as string for GateVerdict
     gate_metrics = {k: v for k, v in metrics.items() if k != "factor_name"}
-    gate_metrics["factor_name"] = factor_name  # type: ignore[assignment]
+    gate_metrics["factor_name"] = factor_name
 
     verdict, gate_diag = evaluate_factor_gates(
         gate_metrics, gate_config=gate_config, existing_factors=existing_factors
