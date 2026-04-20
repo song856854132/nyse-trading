@@ -583,6 +583,82 @@ ternary conversion.
 > satisfied on this iter-30 tip per the same evidence chain from
 > iter-29 plus the mypy re-verification above.
 
+> **[RALPH-LOOP iter-31 closure block — 2026-04-21]**
+>
+> **What:** Re-closed completion criterion 8 (`docs/RALPH_LOOP_TASK.md:68`
+> — "PDF regenerated today and committed") for calendar day
+> **2026-04-21**. iter-30 landed green on GH Actions at 2026-04-20 15:35
+> UTC (= 2026-04-21 00:35 KST) — by the time all six per-job CI steps
+> reported green and this terminal was ready to emit, the local calendar
+> had already crossed midnight into 2026-04-21, aging out iter-29's
+> 2026-04-20 PDF regen under the same strict reading of "today" that
+> iter-29 itself established.
+>
+> **Why:** The RALPH protocol requires all eleven criteria to hold
+> *simultaneously in the same commit*. Without an iter-31 commit
+> dated 2026-04-21, the completion promise cannot honestly emit: the
+> tip commit `9c4eb31` was made on 2026-04-20 and its PDF regen
+> (inherited from iter-29 `7d0f701`) is also dated 2026-04-20. Under
+> 2026-04-21 emission, criterion 8 is stale. Regenerating today closes
+> the last gap.
+>
+> **How to apply:** Ran `scripts/regen_framework_pdf.sh` on
+> 2026-04-21 00:06 KST. The script is deterministic w.r.t. its input
+> markdown but embeds a generation timestamp, so a same-content regen
+> produces a byte-different PDF — that timestamp is the auditor-visible
+> proof of "regenerated today."
+>
+> **Evidence (2 artifacts):**
+> - `docs/FRAMEWORK_AND_PIPELINE.pdf` — regenerated 2026-04-21 00:06 KST,
+>   1787534 bytes (identical to iter-29 since md source unchanged),
+>   new SHA-256
+>   `fd7786211fdbf904092e9824ccdee20eb1692935f6a36d1fa8ab3299d9f5f56d`
+>   (vs iter-29 `b55cb47be528b6a7...`).
+> - `docs/TODOS.md` — this closure block.
+>
+> **Simultaneous verification of the other ten criteria on this
+> iter-31 commit:**
+> - **Criterion 1:** RALPH-scope TODO-3..TODO-8 CLOSED — unchanged.
+> - **Criterion 2:** RALPH-scope TODO-14..TODO-22 CLOSED — unchanged.
+> - **Criterion 3:** GH Actions CI on iter-30 tip `9c4eb31` green on
+>   both Py 3.11 (job 72149...) and Py 3.12 (job 72149...) plus
+>   secret-scan. All 13 per-job steps including Mypy and Pytest
+>   completed with `conclusion=success`. This iter-31 commit triggers
+>   a fresh CI run; the completion promise emits only after *that* run
+>   also lands green.
+> - **Criterion 4:** pre-commit hook stack runs on this commit (no
+>   `--no-verify`).
+> - **Criterion 5:** `pytest` on iter-30 CI tip passed with zero
+>   skipped / zero xfailed (CI step `Pytest` concluded `success`;
+>   iter-28's local run was `1143 passed, 0 skipped, 0 failed, 71
+>   warnings in 1292.84s`). iter-31 only touches `docs/*` and
+>   `results/*`, so test behavior is unchanged.
+> - **Criterion 6:** CI `Mypy (strict, per pyproject.toml)` step
+>   concluded `success` on iter-30 tip `9c4eb31` on both Py 3.11 and
+>   Py 3.12. iter-31 adds only doc + PDF + log content, no `src/` or
+>   `tests/` changes — verdict carries forward.
+> - **Criterion 7:** research-log chain verifies end-to-end — the
+>   iter-31 event appends off iter-30 tip
+>   `9d6baa56222bcf70...b95b30ac` → new tip appended below.
+> - **Criterion 8:** closed by this iter (evidence above).
+> - **Criterion 9:** docs/RISK_REGISTER.md, docs/DATA_DICTIONARY.md,
+>   docs/REPRODUCIBILITY.md, docs/GOVERNANCE_LOG.md,
+>   docs/EXECUTIVE_SUMMARY_NONQUANT.md all exist with real content.
+> - **Criterion 10:** `results/holdout/` nonexistent; `src/nyse_core/`
+>   has no reachable logic that admits dates > 2023-12-31.
+> - **Criterion 11:** canonical TODO-11 (`docs/TODOS.md:499+`) and
+>   canonical TODO-23 (DEFERRED) both unchanged by this iter.
+>
+> **Iron rule compliance:** no date logic touched in code (PDF regen
+> only); no AP-6 changes; no tests touched; no adapter code touched
+> (no secret leakage surface); all six pre-commit hooks run on this
+> commit; hash chain appended off `9d6baa56...b95b30ac`; canonical
+> TODO-11/TODO-23 untouched.
+>
+> **Completion promise status:** WILL EMIT after this iter-31 commit
+> is pushed to `origin/master` and GH Actions CI lands green on the
+> new tip. That is the only gate remaining.
+
 ### TODO-11: Validate Strategy on Real S&P 500 Data
 **What:** Execute full walk-forward backtest using real data from FinMind/EDGAR/FINRA adapters (all built). The synthetic backtest in `generate_figures.py` is a pipeline smoke test, not a signal validation.
 **Why:** All signal quality conclusions (IC, factor weights, Sharpe) are currently from synthetic data. The synthetic generator creates both returns AND factors from the same latent traits — it's a self-fulfilling world. No investment decision should be made based on synthetic metrics.
