@@ -26,7 +26,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from append_research_log import append_event  # noqa: E402
 
-from nyse_core.factor_screening import screen_factor
+from nyse_core.benchmark_metrics import compute_benchmark_relative_metrics
+from nyse_core.factor_screening import compute_long_short_returns, screen_factor
 from nyse_core.features.fundamental import (
     compute_accruals,
     compute_piotroski_f_score,
@@ -152,6 +153,63 @@ def _load_ohlcv(db_path: Path, start: date, end: date) -> pd.DataFrame:
     finally:
         conn.close()
     return df
+
+
+def _load_benchmark_ohlcv(db_path: Path, symbols: list[str], start: date, end: date) -> pd.DataFrame:
+    """Load benchmark OHLCV from the isolated ``benchmark_ohlcv`` table.
+
+    Benchmarks (SPY / RSP / sector ETFs) live in a separate table so they do
+    not leak into the factor-screening universe. Absence of the table or of
+    the requested symbols is non-fatal — the caller either computes
+    diagnostics over the benchmarks it has or skips them.
+    """
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
+            ).fetchall()
+        }
+        if "benchmark_ohlcv" not in tables:
+            return pd.DataFrame(columns=["date", "symbol", "open", "high", "low", "close", "volume"])
+        df = conn.execute(
+            """
+            SELECT date, symbol, open, high, low, close, volume
+            FROM benchmark_ohlcv
+            WHERE symbol IN (SELECT UNNEST($1::VARCHAR[]))
+              AND date >= $2::DATE
+              AND date <= $3::DATE
+            ORDER BY date, symbol
+            """,
+            [symbols, str(start), str(end)],
+        ).fetchdf()
+    finally:
+        conn.close()
+    return df
+
+
+def _extract_benchmark_fwd_returns(fwd_panel: pd.DataFrame, tickers: list[str]) -> dict[str, pd.Series]:
+    """Pull per-benchmark forward-return series out of a long-format fwd panel.
+
+    The panel is indexed by (date, symbol); we project each requested ticker
+    to a date-indexed Series. Missing tickers map to empty Series — the
+    diagnostic helper handles the degenerate case.
+    """
+    out: dict[str, pd.Series] = {}
+    if fwd_panel.empty:
+        for t in tickers:
+            out[t] = pd.Series(dtype=float)
+        return out
+    df = fwd_panel.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    for t in tickers:
+        sub = df[df["symbol"] == t]
+        if sub.empty:
+            out[t] = pd.Series(dtype=float)
+        else:
+            out[t] = sub.set_index("date")["fwd_ret_5d"].sort_index()
+    return out
 
 
 def _load_fundamentals(db_path: Path, start: date, end: date) -> pd.DataFrame:
@@ -289,12 +347,45 @@ def main() -> int:
     fwd = _build_forward_returns(ohlcv, rebalance)
     print(f"       fwd-return rows={len(fwd):,}", flush=True)
 
+    # Benchmark panel — load SPY/RSP from isolated benchmark_ohlcv table and
+    # convert to the same 5-day forward-return convention as the factor
+    # portfolio so diagnostic metrics are on comparable footing.
+    benchmark_tickers = ["SPY", "RSP"]
+    bench_ohlcv = _load_benchmark_ohlcv(args.db_path, benchmark_tickers, start, end)
+    if bench_ohlcv.empty:
+        print(
+            "       benchmark_ohlcv missing or empty — benchmark diagnostics skipped",
+            flush=True,
+        )
+        benchmark_fwd: dict[str, pd.Series] = {}
+    else:
+        bench_fwd_panel = _build_forward_returns(bench_ohlcv, rebalance)
+        benchmark_fwd = _extract_benchmark_fwd_returns(bench_fwd_panel, benchmark_tickers)
+        print(
+            "       benchmark fwd-return rows: "
+            + ", ".join(f"{t}={len(s):,}" for t, s in benchmark_fwd.items()),
+            flush=True,
+        )
+
     print("[5/5] Running screen_factor() — G0..G5...", flush=True)
     verdict, metrics, diag = screen_factor(
         factor_name=args.factor,
         factor_scores=factor_scores,
         forward_returns=fwd,
     )
+
+    # Benchmark-relative diagnostic (iter-1 TODO-9 follow-on). Recompute the
+    # long-short return series — ``screen_factor`` does not return it — and
+    # hand it to the pure helper alongside the benchmark 5-day forward returns.
+    # These metrics are diagnostic only; they do NOT participate in G0-G5.
+    ls_returns, _ls_diag = compute_long_short_returns(factor_scores, fwd)
+    if benchmark_fwd and len(ls_returns) > 0:
+        bench_rel, _bench_diag = compute_benchmark_relative_metrics(
+            portfolio_returns=ls_returns,
+            benchmark_returns=benchmark_fwd,
+        )
+    else:
+        bench_rel = {}
 
     # ── Present ────────────────────────────────────────────────────────────
     gate_cfg = {
@@ -345,6 +436,10 @@ def main() -> int:
                 "n_fwd_return_rows": int(len(fwd)),
                 "start_date": str(start),
                 "end_date": str(end),
+                "benchmark_relative_metrics": {
+                    ticker: {k: (float(v) if not pd.isna(v) else None) for k, v in payload.items()}
+                    for ticker, payload in bench_rel.items()
+                },
             },
             indent=2,
         )
