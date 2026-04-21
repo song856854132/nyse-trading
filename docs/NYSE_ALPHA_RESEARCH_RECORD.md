@@ -375,6 +375,29 @@ E. Renegotiate Phase 3 exit target — "any factor passes G0-G5" rather than ens
 
 Path C is the recommended next action because (a) cheapest to run, (b) directly tests whether 5-day is the reason fundamentals are failing, (c) AP-6-compliant as a fresh forecast.
 
+#### Seventh Action: Full-Set Reproduction Verification (2026-04-21, iter-0 of the next research wave)
+
+Before opening the next 20-iteration research wave (benchmark menu redesign → portfolio-construction alternatives → gate-calibration audit under pre-registration → multi-factor admission reform → regime-conditioning), all six Tier-1 / Tier-2 factors were re-screened through `scripts/screen_factor.py` against the same research database (`research.duckdb`, 960,072 OHLCV rows × 491 symbols × 2016-01-04 → 2023-12-29; 308,660 fundamentals fact rows × 492 symbols). Purpose: honest-broker reproducibility check that the 2026-04-18 admission verdicts are a property of the data + methodology rather than of a specific run.
+
+| Factor | G0 Sharpe (Apr-18) | G0 Sharpe (Apr-21) | Δ | G2 ic_mean Apr-21 | G3 ic_ir Apr-21 | Verdict change |
+|--------|---:|---:|---:|---:|---:|:---:|
+| ivol_20d | −1.9156 | −1.9156 | 0.0000 | −0.0079 | −0.0545 | None (FAIL→FAIL) |
+| high_52w | −1.2291 | −1.2291 | 0.0000 | −0.0055 | −0.0234 | None (FAIL→FAIL) |
+| momentum_2_12 | +0.5164 | +0.5164 | 0.0000 | +0.0189 | +0.0777 | None (FAIL→FAIL) |
+| accruals | +0.5765 | +0.5765 | 0.0000 | +0.0080 | +0.0623 | None (FAIL→FAIL) |
+| profitability | +1.1477 | +1.1477 | 0.0000 | +0.0158 | +0.1130 | None (FAIL→FAIL) |
+| **piotroski** | +0.0385 | **+0.0181** | **−0.0204** | +0.0090 | +0.0890 | None (FAIL→FAIL; G0 still < 0.30) |
+
+**5/6 reproduce bit-exactly. Piotroski's G0 Sharpe drifted from 0.0385 → 0.0181 (−0.02 absolute, −53% relative) while its IC metrics (G2, G3) stayed essentially unchanged (G3 drifted by 0.0002).**
+
+**Root cause (working hypothesis).** Piotroski F-score is a discrete integer 0-9. The long-short LS-return builder (`src/nyse_core/factor_screening.py::compute_long_short_returns`) constructs weekly quintile baskets via pandas rank/qcut on the score column. With only ~10 unique score values, every rebalance date has large tie groups (e.g., dozens of stocks tied at F=6). pandas resolves ties using the DataFrame's underlying row order, which is groupby-/merge-dependent and not deterministically stable across runs (especially when DuckDB returns rows in a query-plan-dependent order). Continuous-score factors (ivol_20d, momentum_2_12, accruals, profitability, high_52w) have essentially no ties and reproduce exactly. Consistent with the observation that G0 (LS Sharpe) is the only metric sensitive to quintile-assignment drift; G2/G3 compute cross-sectional IC via Spearman on raw scores, which is invariant to tie ordering.
+
+**AP-6 compliance.** Both piotroski values (0.0385 and 0.0181) sit well below G0's 0.30 floor; verdict (FAIL) is unchanged. We do NOT silently "fix" the tie-breaking and re-run piotroski — that would constitute retroactive methodology change. The defect is documented; any fix must be pre-registered as a `correction` event dated before any re-screen. Captured as **TODO-36** in `docs/TODOS.md`.
+
+**What this unlocks.** 5/6 bit-exact reproduction is strong evidence the 2026-04-18 admission result (0/6 all FAIL) is a property of the data, not of run-to-run noise. The 20-iteration research plan now starts from a reproducibility-verified baseline.
+
+**Evidence:** `results/factors/{ivol_20d,high_52w,momentum_2_12,accruals,profitability,piotroski}/gate_results.json` (freshly overwritten 2026-04-21 — same numbers for 5 factors, drifted for piotroski); `results/factors/*/screening_metrics.json` likewise; research log entry chained from iter-31 PDF-regen tip. Rerun wall-clock: profitability 45 min, piotroski/accruals ≈ 45 min each, momentum/ivol/52w ≈ 4-5 min each — unoptimized but dominated by the 500-rep block-bootstrap permutation test, not by compute_* functions.
+
 ### Key Decisions Made
 
 1. **PCA deduplication before ensemble:** From TWSE Phases 48-50, where 7 short-interest variants collapsed to 1.91 effective dimensions. The short_pca_composite factor captures the same information with less multicollinearity.
