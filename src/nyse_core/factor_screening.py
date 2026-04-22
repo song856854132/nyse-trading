@@ -106,6 +106,96 @@ def compute_long_short_returns(
     return result, diag
 
 
+def compute_long_short_weights(
+    factor_scores: pd.DataFrame,
+    n_quantiles: int = 5,
+) -> tuple[pd.DataFrame, Diagnostics]:
+    """Construct equal-weighted long-short quintile portfolio weights.
+
+    Companion to ``compute_long_short_returns`` — mirrors the same quintile
+    construction but emits per-(date, symbol) weights instead of collapsing to
+    a single return per date. Brinson attribution (iter-3) and any later
+    characteristic-matched benchmark (iter-4) both need the raw weights, so
+    exposing them here avoids re-deriving the quintile logic downstream.
+
+    For each rebalance date:
+      - Top quintile stocks each receive weight ``+1 / n_top``
+      - Bottom quintile stocks each receive weight ``-1 / n_bot``
+      - Middle quintiles are excluded from the output entirely (weight=0 by
+        absence) — keeping the DataFrame compact
+
+    The output is dollar-neutral per date (sum of longs = +1, sum of shorts =
+    -1). It is NOT dollar-sized; callers scaling to a target gross exposure
+    should multiply by (gross_exposure / 2).
+
+    Parameters
+    ----------
+    factor_scores : pd.DataFrame
+        Columns: date, symbol, score.
+    n_quantiles : int
+        Number of quantile buckets (default 5 for quintiles).
+
+    Returns
+    -------
+    tuple[pd.DataFrame, Diagnostics]
+        (weights DataFrame with columns ``[date, symbol, weight]``, diagnostics).
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}.compute_long_short_weights"
+
+    if factor_scores.empty:
+        diag.warning(src, "Empty factor_scores; returning empty weights DataFrame.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    dates = sorted(factor_scores["date"].unique())
+    records: list[dict[str, object]] = []
+    n_skipped = 0
+
+    for dt in dates:
+        day_data = factor_scores[factor_scores["date"] == dt].dropna(subset=["score"])
+        if len(day_data) < n_quantiles:
+            n_skipped += 1
+            continue
+
+        day_data = day_data.copy()
+        day_data["quantile"] = pd.qcut(day_data["score"], q=n_quantiles, labels=False, duplicates="drop")
+
+        n_labels = day_data["quantile"].nunique()
+        if n_labels < 2:
+            n_skipped += 1
+            continue
+
+        top_q = day_data["quantile"].max()
+        bot_q = day_data["quantile"].min()
+
+        top_mask = day_data["quantile"] == top_q
+        bot_mask = day_data["quantile"] == bot_q
+        n_top = int(top_mask.sum())
+        n_bot = int(bot_mask.sum())
+
+        if n_top == 0 or n_bot == 0:
+            n_skipped += 1
+            continue
+
+        long_w = 1.0 / n_top
+        short_w = -1.0 / n_bot
+        for sym in day_data.loc[top_mask, "symbol"]:
+            records.append({"date": dt, "symbol": sym, "weight": long_w})
+        for sym in day_data.loc[bot_mask, "symbol"]:
+            records.append({"date": dt, "symbol": sym, "weight": short_w})
+
+    if n_skipped:
+        diag.info(src, f"Skipped {n_skipped} date(s) with insufficient quantile spread.")
+
+    if not records:
+        diag.warning(src, "No valid dates produced long-short weights.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    result = pd.DataFrame(records)
+    diag.info(src, f"Computed long-short weights for {result['date'].nunique()} dates, {len(result)} rows.")
+    return result, diag
+
+
 def _compute_ic_series(
     factor_scores: pd.DataFrame,
     forward_returns: pd.DataFrame,

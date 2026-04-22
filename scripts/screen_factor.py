@@ -26,8 +26,14 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from append_research_log import append_event  # noqa: E402
 
+from nyse_core.attribution import compute_attribution
+from nyse_core.benchmark_construction import compute_sector_neutral_returns
 from nyse_core.benchmark_metrics import compute_benchmark_relative_metrics
-from nyse_core.factor_screening import compute_long_short_returns, screen_factor
+from nyse_core.factor_screening import (
+    compute_long_short_returns,
+    compute_long_short_weights,
+    screen_factor,
+)
 from nyse_core.features.fundamental import (
     compute_accruals,
     compute_piotroski_f_score,
@@ -40,6 +46,7 @@ from nyse_core.features.price_volume import (
 )
 from nyse_core.normalize import rank_percentile
 from nyse_core.schema import COL_CLOSE, COL_DATE, COL_SYMBOL
+from nyse_core.sector_map_loader import load_gics_sectors
 
 # Maps factor name → (compute_fn, sign_convention, data_source, lookback_days)
 # sign_convention: -1 means "low raw value = buy" — we negate before ranking.
@@ -379,6 +386,27 @@ def main() -> int:
     # hand it to the pure helper alongside the benchmark 5-day forward returns.
     # These metrics are diagnostic only; they do NOT participate in G0-G5.
     ls_returns, _ls_diag = compute_long_short_returns(factor_scores, fwd)
+
+    # iter-3 sector-neutral benchmark. Pivot the long-format fwd panel to a
+    # (date × symbol) wide return panel, load the static GICS sector_map, and
+    # call the two-stage equal-weight helper. Result is a date-indexed Series
+    # directly comparable to ``ls_returns`` — we slot it alongside SPY / RSP
+    # under the bench_rel dict so the same compute_benchmark_relative_metrics
+    # consumer produces Sharpe_excess / beta / alpha / IR / TE for all three.
+    sector_map_path = Path(__file__).resolve().parent.parent / "config" / "gics_sectors_sp500.csv"
+    sector_map, _sector_diag = load_gics_sectors(sector_map_path)
+    if not fwd.empty:
+        fwd_wide = fwd.pivot(index="date", columns="symbol", values="fwd_ret_5d")
+        fwd_wide.index = pd.to_datetime(fwd_wide.index)
+        sector_neutral_ret, _sn_diag = compute_sector_neutral_returns(fwd_wide, sector_map)
+        if not sector_neutral_ret.empty:
+            benchmark_fwd["sector_neutral"] = sector_neutral_ret
+            print(
+                f"       sector_neutral fwd-return rows: {len(sector_neutral_ret):,} "
+                f"(sector_map n={len(sector_map)}, n_sectors={sector_map.nunique(dropna=True)})",
+                flush=True,
+            )
+
     if benchmark_fwd and len(ls_returns) > 0:
         bench_rel, _bench_diag = compute_benchmark_relative_metrics(
             portfolio_returns=ls_returns,
@@ -386,6 +414,45 @@ def main() -> int:
         )
     else:
         bench_rel = {}
+
+    # iter-3 Brinson factor + sector attribution (diagnostic only). Constructs
+    # per-(date, symbol) long-short weights, feeds them + stock returns +
+    # factor exposures + sector_map to nyse_core.attribution.compute_attribution,
+    # and persists the resulting factor_contributions + sector_contributions
+    # alongside gate metrics. Equal-weight benchmark (Brinson default when
+    # benchmark_weights=None) is used — characteristic-matched benchmark is
+    # deferred to iter-4.
+    brinson_payload: dict[str, object] = {}
+    if not factor_scores.empty and not fwd.empty and not sector_map.empty:
+        ls_weights, _lw_diag = compute_long_short_weights(factor_scores)
+        factor_exposures = factor_scores.rename(columns={"score": "exposure"}).assign(
+            factor_name=args.factor
+        )[["date", "symbol", "factor_name", "exposure"]]
+        stock_returns = fwd.rename(columns={"fwd_ret_5d": "return"})[["date", "symbol", "return"]]
+        if not ls_weights.empty:
+            attribution_report, _attr_diag = compute_attribution(
+                portfolio_weights=ls_weights,
+                stock_returns=stock_returns,
+                factor_exposures=factor_exposures,
+                sector_map=sector_map,
+            )
+            brinson_payload = {
+                "factor_contributions": {
+                    k: float(v) for k, v in attribution_report.factor_contributions.items()
+                },
+                "sector_contributions": {
+                    k: float(v) for k, v in attribution_report.sector_contributions.items()
+                },
+                "total_return": float(attribution_report.total_return),
+                "period_start": str(attribution_report.period_start),
+                "period_end": str(attribution_report.period_end),
+            }
+            print(
+                f"       Brinson: total_return={attribution_report.total_return:.4f}, "
+                f"factors={len(attribution_report.factor_contributions)}, "
+                f"sectors={len(attribution_report.sector_contributions)}",
+                flush=True,
+            )
 
     # ── Present ────────────────────────────────────────────────────────────
     gate_cfg = {
@@ -440,6 +507,7 @@ def main() -> int:
                     ticker: {k: (float(v) if not pd.isna(v) else None) for k, v in payload.items()}
                     for ticker, payload in bench_rel.items()
                 },
+                "brinson_attribution": brinson_payload,
             },
             indent=2,
         )

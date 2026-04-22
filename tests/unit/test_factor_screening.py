@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 
 from nyse_core.contracts import GateVerdict
-from nyse_core.factor_screening import compute_long_short_returns, screen_factor
+from nyse_core.factor_screening import (
+    compute_long_short_returns,
+    compute_long_short_weights,
+    screen_factor,
+)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -196,6 +200,86 @@ class TestLongShortReturns:
         ls_ret, diag = compute_long_short_returns(factor_scores, forward_returns)
         assert ls_ret.mean() > 0, (
             f"Expected positive mean LS return with strong signal, got {ls_ret.mean():.6f}"
+        )
+
+
+class TestLongShortWeights:
+    """Tests for the compute_long_short_weights helper (iter-3 Brinson input).
+
+    The weights mirror the quintile construction of compute_long_short_returns
+    but expose per-(date, symbol) rows so downstream Brinson attribution and
+    characteristic-matched benchmarks can consume them directly.
+    """
+
+    def test_shape_and_columns(self) -> None:
+        factor_scores, _ = _make_factor_data_v2(n_dates=10, n_stocks=50, seed=0)
+        weights, diag = compute_long_short_weights(factor_scores)
+        assert isinstance(weights, pd.DataFrame)
+        assert list(weights.columns) == ["date", "symbol", "weight"]
+        assert not diag.has_errors
+
+    def test_dollar_neutral_per_date(self) -> None:
+        """Sum of longs must be +1 and sum of shorts must be -1 per date."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=20, n_stocks=100, seed=1)
+        weights, _ = compute_long_short_weights(factor_scores)
+        per_date = weights.groupby("date")["weight"].agg(
+            long_sum=lambda s: s[s > 0].sum(),
+            short_sum=lambda s: s[s < 0].sum(),
+        )
+        # Per-date gross longs sum to +1, gross shorts sum to -1.
+        assert np.allclose(per_date["long_sum"], 1.0, atol=1e-12)
+        assert np.allclose(per_date["short_sum"], -1.0, atol=1e-12)
+
+    def test_equal_weights_within_leg(self) -> None:
+        """Within the long leg all weights are equal, ditto short leg."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=50, seed=2)
+        weights, _ = compute_long_short_weights(factor_scores)
+        for _dt, grp in weights.groupby("date"):
+            longs = grp.loc[grp["weight"] > 0, "weight"].unique()
+            shorts = grp.loc[grp["weight"] < 0, "weight"].unique()
+            assert len(longs) == 1, f"longs not uniform: {longs}"
+            assert len(shorts) == 1, f"shorts not uniform: {shorts}"
+
+    def test_long_symbols_have_higher_scores(self) -> None:
+        """The long leg (positive weights) must correspond to top-quintile scores."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=100, seed=3)
+        weights, _ = compute_long_short_weights(factor_scores)
+        merged = pd.merge(weights, factor_scores, on=["date", "symbol"])
+        for _dt, grp in merged.groupby("date"):
+            long_scores = grp.loc[grp["weight"] > 0, "score"]
+            short_scores = grp.loc[grp["weight"] < 0, "score"]
+            assert long_scores.min() > short_scores.max()
+
+    def test_nan_scores_excluded(self) -> None:
+        """NaN scores must not appear in the output weights."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=4)
+        # Poison a handful of scores
+        factor_scores.loc[::10, "score"] = np.nan
+        weights, _ = compute_long_short_weights(factor_scores)
+        poisoned = factor_scores.loc[factor_scores["score"].isna(), ["date", "symbol"]]
+        merged = pd.merge(weights, poisoned, on=["date", "symbol"], how="inner")
+        assert merged.empty, "NaN-scored rows must not receive weights"
+
+    def test_empty_input_returns_empty_frame(self) -> None:
+        weights, diag = compute_long_short_weights(pd.DataFrame(columns=["date", "symbol", "score"]))
+        assert weights.empty
+        assert list(weights.columns) == ["date", "symbol", "weight"]
+        assert any("Empty factor_scores" in m.message for m in diag.messages)
+
+    def test_insufficient_stocks_per_date_skipped(self) -> None:
+        """A date with fewer than n_quantiles stocks must be dropped, not raise."""
+        factor_scores = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2020-01-03")] * 3 + [pd.Timestamp("2020-01-10")] * 50,
+                "symbol": [f"S{i}" for i in range(3)] + [f"T{i}" for i in range(50)],
+                "score": list(range(3)) + list(range(50)),
+            }
+        )
+        weights, diag = compute_long_short_weights(factor_scores, n_quantiles=5)
+        # Only the 50-stock date should appear in the output.
+        assert set(weights["date"].unique()) == {pd.Timestamp("2020-01-10")}
+        assert any(
+            "insufficient quantile spread" in m.message or "Skipped" in m.message for m in diag.messages
         )
 
 
