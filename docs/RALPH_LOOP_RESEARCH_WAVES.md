@@ -26,13 +26,14 @@ The canonical research narrative lives at `docs/NYSE_ALPHA_RESEARCH_RECORD.md` Â
 | 2 | A-benchmark | `9a9378c` | `2a030ef3...b4a42142` | `compute_sector_neutral_returns` (pure helper, sourcing deferred) |
 | 3 | A-benchmark | `0a30f31` | `2c0fe425...ea2620cd` | Static GICS CSV + `sector_map_loader` + Brinson wiring + sector-neutral benchmark wired into `screen_factor.py` |
 | 4 | A-benchmark | `28681d2` | `98fd0417...81034de0` | `compute_characteristic_matched_benchmark` pure helper + `char_matched_size` wiring in `screen_factor.py` (size proxy = 20d mean closeÃ—volume; 18 tests; ls_weights hoisted; diagnostic only) |
-| 5 | B-portfolio | pending | `c1fa28f0...e38b2bcb` | `compute_volatility_scaled_weights` pure helper (inverse-vol within leg; degenerates to equal-weight when all vols equal) + `_build_vol_panel` (20d trailing std of daily pct_change) + `alternative_portfolios.{vol_scaled,equal_weight_baseline}` persisted in `screening_metrics.json`; 13 tests; diagnostic only |
+| 5 | B-portfolio | `9ba9767` | `c1fa28f0...e38b2bcb` | `compute_volatility_scaled_weights` pure helper (inverse-vol within leg; degenerates to equal-weight when all vols equal) + `_build_vol_panel` (20d trailing std of daily pct_change) + `alternative_portfolios.{vol_scaled,equal_weight_baseline}` persisted in `screening_metrics.json`; 13 tests; diagnostic only |
+| 6 | B-portfolio | pending | `ec098b5c...29e4fedd` | `compute_cap_tilted_weights` pure helper (within-leg weights proportional to `size**tilt`, default sqrt-cap; tilt=0 reduces to equal-weight, tilt=1 reduces to pure cap-weight) + reuses iter-4 `_build_size_panel` (canonical size proxy) + `alternative_portfolios.cap_tilted_sqrt` persisted alongside iter-5's `equal_weight_baseline` in `screening_metrics.json`; 16 tests; diagnostic only |
 
 **Wave 1 (A-benchmark) COMPLETE.** All four benchmark references (SPY, RSP, sector_neutral, char_matched_size) now flow through `compute_benchmark_relative_metrics` in `screen_factor.py`. Gate admission (G0-G5) untouched.
 
-**Wave 2 (B-portfolio) IN PROGRESS.** iter-5 shipped (vol-scaled long-short). Next: iter-6 market-cap-tilted, iter-7 Sharpe-weighted ensemble, iter-8 risk-parity across legs.
+**Wave 2 (B-portfolio) IN PROGRESS.** iter-5 (vol-scaled long-short) and iter-6 (cap-tilted long-short, sqrt-cap default) shipped. Next: iter-7 Sharpe-weighted ensemble, iter-8 risk-parity across legs.
 
-**Current research-log chain tip:** `c1fa28f0b97fb3295e2316ac3a15925a0dc4c81429651dd548a6c411e38b2bcb` (iter-5, 2026-04-22).
+**Current research-log chain tip:** `ec098b5c89096c62202064aadb284f5ace0bc61adc7b027c16eda29c29e4fedd` (iter-6, 2026-04-23).
 
 ## Next Iteration Scope
 

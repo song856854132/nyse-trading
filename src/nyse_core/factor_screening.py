@@ -333,6 +333,148 @@ def compute_volatility_scaled_weights(
     return result, diag
 
 
+def compute_cap_tilted_weights(
+    factor_scores: pd.DataFrame,
+    size_panel: pd.DataFrame,
+    n_quantiles: int = 5,
+    tilt_exponent: float = 0.5,
+) -> tuple[pd.DataFrame, Diagnostics]:
+    """Construct market-cap-tilted long-short quintile portfolio weights.
+
+    Diagnostic sibling to ``compute_long_short_weights`` and
+    ``compute_volatility_scaled_weights``. Within each leg, weights are
+    proportional to ``size ** tilt_exponent``:
+
+      * ``tilt_exponent = 0`` → every stock gets the same weight (reduces
+        mathematically to ``compute_long_short_weights``).
+      * ``tilt_exponent = 1`` → pure cap-weighted within each leg.
+      * ``tilt_exponent = 0.5`` → sqrt-cap tilt (default). Reduces the
+        tiny-cap concentration that dominates equal-weight long-short
+        portfolios in practice, while not over-weighting mega-caps.
+
+    Quintile construction is identical to ``compute_long_short_weights`` (same
+    ``pd.qcut`` with ``duplicates="drop"``) so iter-0 bit-exactness of
+    quintile membership is preserved. Within each leg, stocks lacking size
+    data (NaN) or with non-positive size are excluded. If a leg has zero
+    valid sizes on a date, that leg is skipped for that date (the other leg
+    still emits if valid).
+
+    Parameters
+    ----------
+    factor_scores : pd.DataFrame
+        Columns: ``date``, ``symbol``, ``score``.
+    size_panel : pd.DataFrame
+        Columns: ``date``, ``symbol``, ``size``. ``size`` can be any positive
+        monotone market-cap proxy (shares-outstanding × price, dollar
+        volume, etc.) — caller owns the proxy choice.
+    n_quantiles : int
+        Number of quantile buckets (default 5, matching
+        ``compute_long_short_weights``).
+    tilt_exponent : float
+        Exponent applied to size. Must be finite and non-negative. Default
+        0.5 (sqrt-cap tilt).
+
+    Returns
+    -------
+    tuple[pd.DataFrame, Diagnostics]
+        (weights DataFrame with columns ``[date, symbol, weight]``,
+        diagnostics).
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}.compute_cap_tilted_weights"
+
+    if factor_scores.empty:
+        diag.warning(src, "Empty factor_scores; returning empty weights DataFrame.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    if size_panel.empty:
+        diag.warning(src, "Empty size_panel; returning empty weights DataFrame.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    required_size_cols = {"date", "symbol", "size"}
+    missing_size_cols = required_size_cols - set(size_panel.columns)
+    if missing_size_cols:
+        diag.warning(src, f"size_panel missing columns {sorted(missing_size_cols)}; returning empty.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    if not (tilt_exponent >= 0.0) or not pd.notna(tilt_exponent):
+        diag.warning(src, f"tilt_exponent {tilt_exponent!r} must be finite and >= 0; returning empty.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    dates = sorted(factor_scores["date"].unique())
+    records: list[dict[str, object]] = []
+    n_skipped_insufficient = 0
+    n_skipped_spread = 0
+    n_leg_no_valid_size = 0
+    n_nonpos_size_excluded = 0
+    n_nan_size_excluded = 0
+
+    for dt in dates:
+        day_data = factor_scores[factor_scores["date"] == dt].dropna(subset=["score"])
+        if len(day_data) < n_quantiles:
+            n_skipped_insufficient += 1
+            continue
+
+        day_data = day_data.copy()
+        day_data["quantile"] = pd.qcut(day_data["score"], q=n_quantiles, labels=False, duplicates="drop")
+        n_labels = day_data["quantile"].nunique()
+        if n_labels < 2:
+            n_skipped_spread += 1
+            continue
+
+        top_q = day_data["quantile"].max()
+        bot_q = day_data["quantile"].min()
+
+        day_size = size_panel[size_panel["date"] == dt][["symbol", "size"]]
+        merged = day_data.merge(day_size, on="symbol", how="left")
+
+        for q_label, sign in ((top_q, +1.0), (bot_q, -1.0)):
+            leg = merged[merged["quantile"] == q_label][["symbol", "size"]].copy()
+            if leg.empty:
+                continue
+            n_nan_size_excluded += int(leg["size"].isna().sum())
+            leg = leg.dropna(subset=["size"])
+            n_nonpos_size_excluded += int((leg["size"] <= 0).sum())
+            leg = leg[leg["size"] > 0]
+            if leg.empty:
+                n_leg_no_valid_size += 1
+                continue
+            raw = leg["size"].astype(float) ** float(tilt_exponent)
+            total = float(raw.sum())
+            if total <= 0:
+                n_leg_no_valid_size += 1
+                continue
+            w_leg = sign * raw / total
+            for sym, w in zip(leg["symbol"], w_leg, strict=True):
+                records.append({"date": dt, "symbol": sym, "weight": float(w)})
+
+    if n_skipped_insufficient:
+        diag.info(
+            src,
+            f"Skipped {n_skipped_insufficient} date(s) with fewer rows than n_quantiles.",
+        )
+    if n_skipped_spread:
+        diag.info(src, f"Skipped {n_skipped_spread} date(s) with insufficient quantile spread.")
+    if n_nan_size_excluded:
+        diag.info(src, f"Excluded {n_nan_size_excluded} (date, symbol) pairs with NaN size.")
+    if n_nonpos_size_excluded:
+        diag.info(src, f"Excluded {n_nonpos_size_excluded} (date, symbol) pairs with non-positive size.")
+    if n_leg_no_valid_size:
+        diag.info(src, f"Skipped {n_leg_no_valid_size} leg(s) with no valid sizes.")
+
+    if not records:
+        diag.warning(src, "No valid dates produced cap-tilted weights.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    result = pd.DataFrame(records)
+    diag.info(
+        src,
+        f"Computed cap-tilted weights (tilt={tilt_exponent}) for "
+        f"{result['date'].nunique()} dates, {len(result)} rows.",
+    )
+    return result, diag
+
+
 def _compute_ic_series(
     factor_scores: pd.DataFrame,
     forward_returns: pd.DataFrame,

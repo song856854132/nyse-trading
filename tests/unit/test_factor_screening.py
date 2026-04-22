@@ -7,6 +7,7 @@ import pandas as pd
 
 from nyse_core.contracts import GateVerdict
 from nyse_core.factor_screening import (
+    compute_cap_tilted_weights,
     compute_long_short_returns,
     compute_long_short_weights,
     compute_volatility_scaled_weights,
@@ -34,6 +35,33 @@ def _make_vol_panel(
         mults = dict.fromkeys(unique_syms, 1.0)
     records = [
         {"date": row.date, "symbol": row.symbol, "vol": base_vol * mults[row.symbol]}
+        for row in factor_scores.itertuples(index=False)
+    ]
+    return pd.DataFrame(records)
+
+
+def _make_size_panel(
+    factor_scores: pd.DataFrame,
+    base_size: float = 1_000_000_000.0,
+    size_heterogeneity: float = 0.0,
+    seed: int = 123,
+) -> pd.DataFrame:
+    """Build a per-(date, symbol) market-cap panel matching factor_scores.
+
+    If ``size_heterogeneity`` is 0, every symbol has size=base_size
+    (homogeneous). Otherwise each symbol gets a symbol-level multiplier
+    drawn uniformly from [1 - size_heterogeneity, 1 + size_heterogeneity].
+    """
+    rng = np.random.default_rng(seed)
+    unique_syms = sorted(factor_scores["symbol"].unique())
+    if size_heterogeneity > 0:
+        mults = {
+            s: float(rng.uniform(1.0 - size_heterogeneity, 1.0 + size_heterogeneity)) for s in unique_syms
+        }
+    else:
+        mults = dict.fromkeys(unique_syms, 1.0)
+    records = [
+        {"date": row.date, "symbol": row.symbol, "size": base_size * mults[row.symbol]}
         for row in factor_scores.itertuples(index=False)
     ]
     return pd.DataFrame(records)
@@ -459,6 +487,202 @@ class TestVolatilityScaledWeights:
         drop_sym = factor_scores["symbol"].iloc[0]
         vol_panel = vol_panel[vol_panel["symbol"] != drop_sym].copy()
         weights, _diag = compute_volatility_scaled_weights(factor_scores, vol_panel)
+        assert drop_sym not in weights["symbol"].unique()
+
+
+class TestCapTiltedWeights:
+    """Tests for compute_cap_tilted_weights (iter-6 Wave-2 diagnostic).
+
+    Mirrors compute_long_short_weights quintile construction (same
+    pd.qcut with duplicates="drop"). Within each leg, weights are
+    proportional to size**tilt_exponent. Iron rules: diagnostic only,
+    no gate change, no sign-convention change.
+
+    Degeneracies:
+        * tilt_exponent = 0   → equal-weight (same as compute_long_short_weights)
+        * tilt_exponent = 1   → pure cap-weight within leg
+        * tilt_exponent = 0.5 → sqrt-cap tilt (default)
+    """
+
+    def test_shape_and_columns(self) -> None:
+        factor_scores, _ = _make_factor_data_v2(n_dates=10, n_stocks=50, seed=0)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.5, seed=30)
+        weights, diag = compute_cap_tilted_weights(factor_scores, size_panel)
+        assert isinstance(weights, pd.DataFrame)
+        assert list(weights.columns) == ["date", "symbol", "weight"]
+        assert not diag.has_errors
+
+    def test_dollar_neutral_per_leg_per_date(self) -> None:
+        """Long leg sums to +1, short leg sums to -1, per date, for any tilt."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=20, n_stocks=100, seed=1)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.7, seed=31)
+        for tilt in (0.0, 0.5, 1.0, 2.0):
+            weights, _ = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=tilt)
+            per_date = weights.groupby("date")["weight"].agg(
+                long_sum=lambda s: s[s > 0].sum(),
+                short_sum=lambda s: s[s < 0].sum(),
+            )
+            assert np.allclose(per_date["long_sum"], 1.0, atol=1e-12), (
+                f"long leg not dollar-neutral at tilt={tilt}"
+            )
+            assert np.allclose(per_date["short_sum"], -1.0, atol=1e-12), (
+                f"short leg not dollar-neutral at tilt={tilt}"
+            )
+
+    def test_weights_proportional_to_size_power_tilt(self) -> None:
+        """Within each leg, weight ratio equals (size**tilt) ratio."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=50, seed=2)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.6, seed=32)
+        tilt = 0.5
+        weights, _ = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=tilt)
+        merged = weights.merge(size_panel, on=["date", "symbol"])
+        for _dt, grp in merged.groupby("date"):
+            for sign_filter in (grp["weight"] > 0, grp["weight"] < 0):
+                leg = grp.loc[sign_filter]
+                if len(leg) < 2:
+                    continue
+                raw = leg["size"] ** tilt
+                expected = raw / raw.sum()
+                got = leg["weight"].abs().to_numpy()
+                np.testing.assert_allclose(got, expected.to_numpy(), atol=1e-12)
+
+    def test_tilt_zero_reduces_to_equal_weight(self) -> None:
+        """tilt=0 → every stock in a leg gets identical weight (equals equal-weight)."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=50, seed=3)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.8, seed=33)
+        ct_weights, _ = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=0.0)
+        eq_weights, _ = compute_long_short_weights(factor_scores)
+        merged = ct_weights.merge(eq_weights, on=["date", "symbol"], suffixes=("_ct", "_eq"))
+        np.testing.assert_allclose(merged["weight_ct"].to_numpy(), merged["weight_eq"].to_numpy(), atol=1e-12)
+
+    def test_tilt_one_is_pure_cap_weight(self) -> None:
+        """tilt=1 → weights proportional to raw size within leg."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=50, seed=4)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.6, seed=34)
+        weights, _ = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=1.0)
+        merged = weights.merge(size_panel, on=["date", "symbol"])
+        for _dt, grp in merged.groupby("date"):
+            for sign_filter in (grp["weight"] > 0, grp["weight"] < 0):
+                leg = grp.loc[sign_filter]
+                if len(leg) < 2:
+                    continue
+                expected = leg["size"] / leg["size"].sum()
+                got = leg["weight"].abs().to_numpy()
+                np.testing.assert_allclose(got, expected.to_numpy(), atol=1e-12)
+
+    def test_reduces_to_equal_weight_when_sizes_equal(self) -> None:
+        """When all sizes are identical, any tilt yields equal-weight."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=50, seed=5)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.0, seed=35)
+        ct_weights, _ = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=0.5)
+        eq_weights, _ = compute_long_short_weights(factor_scores)
+        merged = ct_weights.merge(eq_weights, on=["date", "symbol"], suffixes=("_ct", "_eq"))
+        np.testing.assert_allclose(merged["weight_ct"].to_numpy(), merged["weight_eq"].to_numpy(), atol=1e-12)
+
+    def test_long_symbols_have_higher_scores(self) -> None:
+        """Top-quintile still gets positive weights under cap-tilting."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=5, n_stocks=100, seed=6)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.5, seed=36)
+        weights, _ = compute_cap_tilted_weights(factor_scores, size_panel)
+        merged = weights.merge(factor_scores, on=["date", "symbol"])
+        for _dt, grp in merged.groupby("date"):
+            long_scores = grp.loc[grp["weight"] > 0, "score"]
+            short_scores = grp.loc[grp["weight"] < 0, "score"]
+            assert long_scores.min() > short_scores.max()
+
+    def test_nan_size_excluded(self) -> None:
+        """Symbols with NaN size must be dropped; remaining weights still sum to 1."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=7)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.4, seed=37)
+        size_panel.loc[::7, "size"] = np.nan
+        weights, diag = compute_cap_tilted_weights(factor_scores, size_panel)
+        poisoned = size_panel.loc[size_panel["size"].isna(), ["date", "symbol"]]
+        bad = pd.merge(weights, poisoned, on=["date", "symbol"], how="inner")
+        assert bad.empty, "NaN-size rows must not receive weights"
+        assert any("NaN size" in m.message for m in diag.messages)
+
+    def test_nonpositive_size_excluded(self) -> None:
+        """Symbols with size <= 0 must be dropped."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=8)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.2, seed=38)
+        size_panel.loc[::11, "size"] = 0.0
+        size_panel.loc[::13, "size"] = -1.0
+        weights, diag = compute_cap_tilted_weights(factor_scores, size_panel)
+        bad_keys = size_panel.loc[size_panel["size"] <= 0, ["date", "symbol"]]
+        bad = pd.merge(weights, bad_keys, on=["date", "symbol"], how="inner")
+        assert bad.empty
+        assert any("non-positive size" in m.message for m in diag.messages)
+
+    def test_leg_with_no_valid_size_is_skipped(self) -> None:
+        """If the entire long leg has NaN size, only the short leg emits."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=50, seed=9)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.0, seed=39)
+        target_date = factor_scores["date"].iloc[0]
+        day_scores = factor_scores[factor_scores["date"] == target_date].copy()
+        day_scores["q"] = pd.qcut(day_scores["score"], q=5, labels=False, duplicates="drop")
+        top_syms = day_scores.loc[day_scores["q"] == day_scores["q"].max(), "symbol"]
+        mask = (size_panel["date"] == target_date) & (size_panel["symbol"].isin(top_syms))
+        size_panel.loc[mask, "size"] = np.nan
+        weights, diag = compute_cap_tilted_weights(factor_scores, size_panel)
+        emitted_long = weights[(weights["date"] == target_date) & (weights["weight"] > 0)]
+        assert emitted_long.empty, "Long leg should not emit when all sizes are NaN"
+        emitted_short = weights[(weights["date"] == target_date) & (weights["weight"] < 0)]
+        assert not emitted_short.empty, "Short leg should still emit on that date"
+        assert any("no valid sizes" in m.message for m in diag.messages)
+
+    def test_empty_factor_scores_returns_empty(self) -> None:
+        weights, diag = compute_cap_tilted_weights(
+            pd.DataFrame(columns=["date", "symbol", "score"]),
+            pd.DataFrame({"date": [], "symbol": [], "size": []}),
+        )
+        assert weights.empty
+        assert list(weights.columns) == ["date", "symbol", "weight"]
+        assert any("Empty factor_scores" in m.message for m in diag.messages)
+
+    def test_empty_size_panel_returns_empty(self) -> None:
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=10)
+        weights, diag = compute_cap_tilted_weights(
+            factor_scores, pd.DataFrame(columns=["date", "symbol", "size"])
+        )
+        assert weights.empty
+        assert any("Empty size_panel" in m.message for m in diag.messages)
+
+    def test_missing_size_panel_columns_returns_empty(self) -> None:
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=11)
+        bad_panel = pd.DataFrame({"date": factor_scores["date"], "symbol": factor_scores["symbol"]})
+        weights, diag = compute_cap_tilted_weights(factor_scores, bad_panel)
+        assert weights.empty
+        assert any("missing columns" in m.message for m in diag.messages)
+
+    def test_invalid_tilt_exponent_returns_empty(self) -> None:
+        """tilt < 0 or NaN must fail fast with an empty result."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=12)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.3, seed=40)
+        for bad in (-0.5, -1.0, float("nan")):
+            weights, diag = compute_cap_tilted_weights(factor_scores, size_panel, tilt_exponent=bad)
+            assert weights.empty, f"tilt={bad} must produce empty weights"
+            assert any("tilt_exponent" in m.message for m in diag.messages)
+
+    def test_insufficient_stocks_per_date_skipped(self) -> None:
+        """A date with fewer than n_quantiles rows must be dropped silently."""
+        factor_scores = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2020-01-03")] * 3 + [pd.Timestamp("2020-01-10")] * 50,
+                "symbol": [f"S{i}" for i in range(3)] + [f"T{i}" for i in range(50)],
+                "score": list(range(3)) + list(range(50)),
+            }
+        )
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.3, seed=41)
+        weights, _diag = compute_cap_tilted_weights(factor_scores, size_panel)
+        assert set(weights["date"].unique()) == {pd.Timestamp("2020-01-10")}
+
+    def test_no_unmapped_symbols_in_output(self) -> None:
+        """Symbols absent from size_panel on a date must be excluded from output."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=13)
+        size_panel = _make_size_panel(factor_scores, size_heterogeneity=0.3, seed=42)
+        drop_sym = factor_scores["symbol"].iloc[0]
+        size_panel = size_panel[size_panel["symbol"] != drop_sym].copy()
+        weights, _diag = compute_cap_tilted_weights(factor_scores, size_panel)
         assert drop_sym not in weights["symbol"].unique()
 
 

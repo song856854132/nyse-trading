@@ -33,6 +33,7 @@ from nyse_core.benchmark_construction import (
 )
 from nyse_core.benchmark_metrics import compute_benchmark_relative_metrics
 from nyse_core.factor_screening import (
+    compute_cap_tilted_weights,
     compute_long_short_returns,
     compute_long_short_weights,
     compute_volatility_scaled_weights,
@@ -643,6 +644,75 @@ def main() -> int:
                         print(
                             f"       vol_scaled portfolio: Sharpe={vs_sharpe:.4f} "
                             f"(Δ vs equal-weight {delta_str}, n={len(vs_returns)})",
+                            flush=True,
+                        )
+
+    # iter-6 (Wave-2) market-cap-tilted long-short portfolio — diagnostic only.
+    # Each stock's weight within its leg is proportional to ``size ** tilt``,
+    # where the size proxy is the same 20d trailing mean(close×volume) used by
+    # the iter-4 char_matched_size benchmark (canonical size proxy across all
+    # diagnostics). Default tilt=0.5 (sqrt-cap) compresses the tiny-cap
+    # concentration that dominates equal-weight long-short portfolios while
+    # not over-weighting mega-caps like pure cap-weight would. Compares
+    # directly against the equal-weight baseline ``ls_returns`` already emitted
+    # by compute_long_short_returns. Never feeds G0-G5.
+    if not factor_scores.empty and not fwd_wide.empty:
+        ct_size_long = _build_size_panel(ohlcv, rebalance, window_days=20)
+        if not ct_size_long.empty:
+            cap_tilted_weights, _ct_diag = compute_cap_tilted_weights(
+                factor_scores=factor_scores,
+                size_panel=ct_size_long,
+                n_quantiles=5,
+                tilt_exponent=0.5,
+            )
+            if not cap_tilted_weights.empty:
+                ct_w_wide = cap_tilted_weights.pivot(index="date", columns="symbol", values="weight").fillna(
+                    0.0
+                )
+                ct_w_wide.index = pd.to_datetime(ct_w_wide.index)
+                common_dates_ct = ct_w_wide.index.intersection(fwd_wide.index)
+                common_syms_ct = ct_w_wide.columns.intersection(fwd_wide.columns)
+                if len(common_dates_ct) > 0 and len(common_syms_ct) > 0:
+                    w_al_ct = ct_w_wide.loc[common_dates_ct, common_syms_ct]
+                    r_al_ct = fwd_wide.loc[common_dates_ct, common_syms_ct].fillna(0.0)
+                    ct_returns = (w_al_ct * r_al_ct).sum(axis=1).dropna()
+                    if len(ct_returns) > 1 and ct_returns.std(ddof=1) > 0:
+                        ct_mean = float(ct_returns.mean())
+                        ct_std = float(ct_returns.std(ddof=1))
+                        # 5-day forward returns at weekly cadence → 52 periods/year
+                        ct_sharpe = float(ct_mean / ct_std * (52**0.5))
+                        alt_portfolios["cap_tilted_sqrt"] = {
+                            "n_periods": int(len(ct_returns)),
+                            "mean_period_return": ct_mean,
+                            "std_period_return": ct_std,
+                            "sharpe_annualized": ct_sharpe,
+                            "tilt_exponent": 0.5,
+                        }
+                        eq_baseline = alt_portfolios.get("equal_weight_baseline")
+                        eq_sharpe_existing = (
+                            eq_baseline.get("sharpe_annualized") if isinstance(eq_baseline, dict) else None
+                        )
+                        if eq_sharpe_existing is None and len(ls_returns) > 1 and ls_returns.std(ddof=1) > 0:
+                            eq_mean_ct = float(ls_returns.mean())
+                            eq_std_ct = float(ls_returns.std(ddof=1))
+                            eq_sharpe_ct: float | None = float(eq_mean_ct / eq_std_ct * (52**0.5))
+                            alt_portfolios["equal_weight_baseline"] = {
+                                "n_periods": int(len(ls_returns.dropna())),
+                                "mean_period_return": eq_mean_ct,
+                                "std_period_return": eq_std_ct,
+                                "sharpe_annualized": eq_sharpe_ct,
+                            }
+                        else:
+                            eq_sharpe_ct = (
+                                float(eq_sharpe_existing)
+                                if isinstance(eq_sharpe_existing, (int, float))
+                                else None
+                            )
+                        delta_ct = ct_sharpe - eq_sharpe_ct if eq_sharpe_ct is not None else None
+                        delta_ct_str = f"{delta_ct:+.4f}" if delta_ct is not None else "n/a"
+                        print(
+                            f"       cap_tilted_sqrt portfolio: Sharpe={ct_sharpe:.4f} "
+                            f"(Δ vs equal-weight {delta_ct_str}, tilt=0.5, n={len(ct_returns)})",
                             flush=True,
                         )
 
