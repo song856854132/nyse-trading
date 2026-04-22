@@ -628,6 +628,182 @@ def compute_ensemble_weights(
     return ensemble_score, diag
 
 
+def compute_risk_parity_weights(
+    factor_returns: dict[str, pd.Series],
+    cov_matrix: pd.DataFrame | None = None,
+    max_iter: int = 200,
+    tol: float = 1e-8,
+) -> tuple[pd.Series, Diagnostics]:
+    """Allocate weights across factor legs so each contributes equal risk.
+
+    Diagnostic-only risk-parity allocator. Given factor-leg return series,
+    produces weights ``w = (w_1, ..., w_n)`` with ``sum(w) = 1`` and
+    ``w_i > 0`` such that the risk contributions
+    ``RC_i = w_i · (Σw)_i`` are equal across factors (Maillard, Roncalli &
+    Teiletche, 2010). Solved via fixed-point iteration
+    ``w ← (1 / Σw) / sum(1 / Σw)`` which converges to equal-risk-contribution
+    under a positive semi-definite covariance matrix.
+
+    **AP-6 note:** this helper does not alter admission gates, factor sign
+    conventions, or quintile construction. It is a pure side-by-side
+    allocator sibling to ``compute_long_short_weights`` and
+    ``compute_ensemble_weights``.
+
+    Parameters
+    ----------
+    factor_returns : dict[str, pd.Series]
+        Mapping of factor name → per-date long-short return Series. Used to
+        estimate covariance when ``cov_matrix`` is None. Factors with
+        non-Series values or all-NaN series are excluded.
+    cov_matrix : pd.DataFrame | None
+        Optional pre-computed covariance matrix. Index must equal columns.
+        When provided, only factors appearing in both
+        ``factor_returns.keys()`` and ``cov_matrix.index`` are used.
+    max_iter : int
+        Maximum fixed-point iterations (default 200).
+    tol : float
+        Convergence tolerance on max absolute weight change per iteration
+        (default 1e-8).
+
+    Returns
+    -------
+    tuple[pd.Series, Diagnostics]
+        (weights Series indexed by factor name summing to 1, diagnostics).
+        Empty Series on degenerate paths with warnings.
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}.compute_risk_parity_weights"
+
+    if not factor_returns:
+        diag.warning(src, "Empty factor_returns; returning empty weights.")
+        return pd.Series(dtype=float, name="weight"), diag
+
+    kept: dict[str, pd.Series] = {}
+    n_excluded_non_series = 0
+    n_excluded_all_nan = 0
+    for factor_name, series in factor_returns.items():
+        if not isinstance(series, pd.Series):
+            n_excluded_non_series += 1
+            diag.info(src, f"Factor '{factor_name}' excluded: not a pd.Series.")
+            continue
+        if series.dropna().empty:
+            n_excluded_all_nan += 1
+            diag.info(src, f"Factor '{factor_name}' excluded: all-NaN series.")
+            continue
+        kept[factor_name] = series
+
+    if n_excluded_non_series:
+        diag.info(src, f"Excluded {n_excluded_non_series} factor(s) with non-Series values.")
+    if n_excluded_all_nan:
+        diag.info(src, f"Excluded {n_excluded_all_nan} factor(s) with all-NaN series.")
+
+    if not kept:
+        diag.warning(src, "No factors survived inclusion filter; returning empty weights.")
+        return pd.Series(dtype=float, name="weight"), diag
+
+    if cov_matrix is not None:
+        if not cov_matrix.index.equals(cov_matrix.columns):
+            diag.warning(src, "cov_matrix index != columns; returning empty weights.")
+            return pd.Series(dtype=float, name="weight"), diag
+        factors_in_cov = set(cov_matrix.index)
+        factors = [f for f in kept if f in factors_in_cov]
+        n_missing_cov = len(kept) - len(factors)
+        if n_missing_cov:
+            diag.info(src, f"Excluded {n_missing_cov} factor(s) missing from cov_matrix.")
+        if not factors:
+            diag.warning(
+                src,
+                "No overlap between factor_returns keys and cov_matrix index; returning empty weights.",
+            )
+            return pd.Series(dtype=float, name="weight"), diag
+        cov = cov_matrix.loc[factors, factors].astype(float).to_numpy(copy=True)
+    else:
+        factors = list(kept.keys())
+        if len(factors) == 1:
+            diag.info(src, "Single factor input; returning weight = 1.0.")
+            return pd.Series([1.0], index=factors, name="weight"), diag
+        returns_df = pd.DataFrame({f: kept[f] for f in factors})
+        cov_df = returns_df.cov()
+        cov = cov_df.astype(float).to_numpy(copy=True)
+
+    variance_floor = 1e-16
+    diag_var = np.diag(cov)
+    valid_idx = np.where(diag_var > variance_floor)[0]
+    n_excluded_zero_var = len(factors) - len(valid_idx)
+    if n_excluded_zero_var:
+        diag.info(src, f"Excluded {n_excluded_zero_var} factor(s) with zero variance.")
+        factors = [factors[i] for i in valid_idx]
+        cov = cov[np.ix_(valid_idx, valid_idx)]
+
+    if not factors:
+        diag.warning(src, "No factors with positive variance; returning empty weights.")
+        return pd.Series(dtype=float, name="weight"), diag
+
+    n = len(factors)
+    if n == 1:
+        diag.info(src, "Single factor after filtering; returning weight = 1.0.")
+        return pd.Series([1.0], index=factors, name="weight"), diag
+
+    diag_cov = np.diag(cov).astype(float)
+    w = np.full(n, 1.0 / n)
+    converged = False
+    last_change = float("nan")
+
+    def _inv_vol_fallback() -> pd.Series:
+        vol = np.sqrt(np.maximum(diag_cov, variance_floor))
+        inv_vol = 1.0 / vol
+        return pd.Series(inv_vol / inv_vol.sum(), index=factors, name="weight")
+
+    for iteration in range(max_iter):
+        w_prev = w.copy()
+        sigma_p_sq = float(w @ cov @ w)
+        if sigma_p_sq <= 0.0 or not np.isfinite(sigma_p_sq):
+            diag.warning(
+                src,
+                "Non-positive portfolio variance; falling back to inverse-vol weights.",
+            )
+            return _inv_vol_fallback(), diag
+        for i in range(n):
+            sigma_ii = float(diag_cov[i])
+            mc_i = float(cov[i] @ w)
+            a_i = mc_i - sigma_ii * w[i]
+            discriminant = a_i * a_i + 4.0 * sigma_ii * sigma_p_sq / n
+            if not np.isfinite(discriminant) or discriminant < 0.0:
+                diag.warning(
+                    src,
+                    f"Non-finite/negative discriminant for factor '{factors[i]}'; "
+                    "falling back to inverse-vol weights.",
+                )
+                return _inv_vol_fallback(), diag
+            w[i] = (-a_i + float(np.sqrt(discriminant))) / (2.0 * sigma_ii)
+        total = float(w.sum())
+        if total <= 0.0 or not np.isfinite(total):
+            diag.warning(src, "Weights sum to non-positive; falling back to inverse-vol weights.")
+            return _inv_vol_fallback(), diag
+        w = w / total
+        last_change = float(np.abs(w - w_prev).max())
+        if last_change < tol:
+            converged = True
+            diag.info(
+                src,
+                f"Risk-parity converged in {iteration + 1} iterations (max_change={last_change:.3e}).",
+            )
+            break
+
+    if not converged:
+        diag.warning(
+            src,
+            f"Risk-parity did not converge in {max_iter} iterations (max_change={last_change:.3e}).",
+        )
+
+    portfolio_variance = float(w @ cov @ w)
+    diag.info(
+        src,
+        f"Computed risk-parity weights across {n} factor(s); portfolio variance = {portfolio_variance:.6f}.",
+    )
+    return pd.Series(w, index=factors, name="weight"), diag
+
+
 def _compute_ic_series(
     factor_scores: pd.DataFrame,
     forward_returns: pd.DataFrame,

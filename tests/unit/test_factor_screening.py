@@ -11,6 +11,7 @@ from nyse_core.factor_screening import (
     compute_ensemble_weights,
     compute_long_short_returns,
     compute_long_short_weights,
+    compute_risk_parity_weights,
     compute_volatility_scaled_weights,
     screen_factor,
 )
@@ -872,6 +873,179 @@ class TestEnsembleWeights:
         ensemble, _diag = compute_ensemble_weights({"A": rank_a, "B": rank_b}, {"A": 0.8, "B": 1.3})
         assert ensemble["score"].min() >= 0.0
         assert ensemble["score"].max() <= 1.0
+
+
+def _gaussian_returns(
+    vols: dict[str, float],
+    n_periods: int = 200,
+    seed: int = 0,
+    correlation: float | None = None,
+) -> dict[str, pd.Series]:
+    """Generate synthetic independent (or correlated) Gaussian return series for testing."""
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2021-01-01", periods=n_periods, freq="B")
+    names = list(vols.keys())
+    n = len(names)
+    if correlation is None or n < 2:
+        raw = rng.standard_normal(size=(n_periods, n))
+    else:
+        base = rng.standard_normal(size=(n_periods, n))
+        shared = rng.standard_normal(size=(n_periods, 1))
+        raw = np.sqrt(1.0 - correlation) * base + np.sqrt(correlation) * shared
+    scaled = raw * np.array([vols[k] for k in names])
+    return {name: pd.Series(scaled[:, idx], index=dates, name=name) for idx, name in enumerate(names)}
+
+
+class TestRiskParityWeights:
+    """Risk-parity allocator invariants (Maillard-Roncalli-Teiletche 2010)."""
+
+    def test_shape_and_index(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.02, "C": 0.03}, seed=1)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert isinstance(w, pd.Series)
+        assert w.name == "weight"
+        assert set(w.index) == {"A", "B", "C"}
+        assert len(w) == 3
+
+    def test_weights_sum_to_one(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.02, "C": 0.03, "D": 0.015}, seed=2)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert abs(float(w.sum()) - 1.0) < 1e-6
+
+    def test_weights_are_nonnegative(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.02, "C": 0.03}, seed=3)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert (w >= 0.0).all()
+
+    def test_equal_variance_diagonal_gives_equal_weight(self):
+        cov = pd.DataFrame(
+            np.diag([0.04, 0.04, 0.04]),
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        returns = _gaussian_returns({"A": 0.2, "B": 0.2, "C": 0.2}, seed=4)
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        np.testing.assert_allclose(w.to_numpy(), np.full(3, 1.0 / 3), atol=1e-6)
+
+    def test_diagonal_cov_gives_inverse_vol(self):
+        vols = np.array([0.1, 0.2, 0.4])
+        cov = pd.DataFrame(np.diag(vols**2), index=["A", "B", "C"], columns=["A", "B", "C"])
+        returns = _gaussian_returns({"A": 0.1, "B": 0.2, "C": 0.4}, seed=5)
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        expected = (1.0 / vols) / (1.0 / vols).sum()
+        np.testing.assert_allclose(w.to_numpy(), expected, atol=1e-6)
+
+    def test_single_factor_passthrough(self):
+        returns = _gaussian_returns({"A": 0.02}, seed=6)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert len(w) == 1
+        assert w.index.tolist() == ["A"]
+        assert float(w.iloc[0]) == 1.0
+
+    def test_empty_input_returns_empty(self):
+        w, _diag = compute_risk_parity_weights({})
+        assert w.empty
+
+    def test_all_nan_series_excluded(self):
+        dates = pd.date_range("2021-01-01", periods=50, freq="B")
+        nan_series = pd.Series([np.nan] * 50, index=dates)
+        returns = _gaussian_returns({"A": 0.02, "B": 0.03}, seed=7)
+        returns["nan_factor"] = nan_series
+        w, _diag = compute_risk_parity_weights(returns)
+        assert "nan_factor" not in w.index
+        assert set(w.index) == {"A", "B"}
+
+    def test_non_series_values_excluded(self):
+        returns = _gaussian_returns({"A": 0.02, "B": 0.03}, seed=8)
+        returns["bad"] = [1.0, 2.0, 3.0]  # type: ignore[assignment]
+        w, _diag = compute_risk_parity_weights(returns)
+        assert "bad" not in w.index
+        assert set(w.index) == {"A", "B"}
+
+    def test_zero_variance_factor_excluded(self):
+        dates = pd.date_range("2021-01-01", periods=100, freq="B")
+        returns = _gaussian_returns({"A": 0.02, "B": 0.03}, seed=9)
+        returns["const"] = pd.Series(np.full(100, 0.001), index=dates)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert "const" not in w.index
+        assert set(w.index) == {"A", "B"}
+
+    def test_explicit_cov_respected(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.01, "C": 0.01}, seed=10)
+        cov = pd.DataFrame(
+            np.diag([0.0001, 0.0004, 0.0016]),
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        # A (lowest vol) should have the largest weight
+        assert w["A"] > w["B"] > w["C"]
+
+    def test_cov_missing_factor_excluded(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.02, "C": 0.03}, seed=11)
+        cov = pd.DataFrame(
+            np.diag([0.0001, 0.0004]),
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        assert "C" not in w.index
+        assert set(w.index) == {"A", "B"}
+
+    def test_cov_non_square_returns_empty(self):
+        returns = _gaussian_returns({"A": 0.01, "B": 0.02}, seed=12)
+        cov = pd.DataFrame(
+            [[0.0001, 0.0], [0.0, 0.0004]],
+            index=["A", "B"],
+            columns=["X", "Y"],
+        )
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        assert w.empty
+
+    def test_risk_contributions_equal_at_convergence(self):
+        cov = pd.DataFrame(
+            np.diag([0.01, 0.04, 0.09]),
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        returns = _gaussian_returns({"A": 0.1, "B": 0.2, "C": 0.3}, seed=13)
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov, tol=1e-12, max_iter=500)
+        cov_np = cov.loc[w.index, w.index].to_numpy()
+        marginal = cov_np @ w.to_numpy()
+        risk_contributions = w.to_numpy() * marginal
+        # All risk contributions should be equal (to within numerical tolerance)
+        assert np.allclose(risk_contributions, risk_contributions.mean(), rtol=1e-5, atol=1e-8)
+
+    def test_correlated_factors_share_weight(self):
+        # Two factors A, B correlated at 0.9 with equal vol; C independent with same vol.
+        # Under exact (symmetric) cov, A and B must get equal weight by symmetry, and
+        # C (independent) must carry more weight than either A or B individually.
+        cov = pd.DataFrame(
+            [[0.0001, 0.00009, 0.0], [0.00009, 0.0001, 0.0], [0.0, 0.0, 0.0001]],
+            index=["A", "B", "C"],
+            columns=["A", "B", "C"],
+        )
+        returns = _gaussian_returns({"A": 0.01, "B": 0.01, "C": 0.01}, seed=14)
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov, tol=1e-10, max_iter=500)
+        assert w["C"] > w["A"]
+        assert w["C"] > w["B"]
+        np.testing.assert_allclose(float(w["A"]), float(w["B"]), atol=1e-6)
+
+    def test_two_factor_known_solution(self):
+        cov = pd.DataFrame(
+            [[0.04, 0.0], [0.0, 0.16]],
+            index=["A", "B"],
+            columns=["A", "B"],
+        )
+        returns = _gaussian_returns({"A": 0.2, "B": 0.4}, seed=15)
+        w, _diag = compute_risk_parity_weights(returns, cov_matrix=cov)
+        # Vols 0.2 and 0.4 → weights ∝ (1/0.2, 1/0.4) = (5, 2.5) → (2/3, 1/3)
+        np.testing.assert_allclose(w.to_numpy(), np.array([2.0 / 3, 1.0 / 3]), atol=1e-6)
+
+    def test_cov_index_preserved_in_output(self):
+        returns = _gaussian_returns({"alpha": 0.01, "beta": 0.02, "gamma": 0.03}, seed=16)
+        w, _diag = compute_risk_parity_weights(returns)
+        assert list(w.index) == ["alpha", "beta", "gamma"]
 
 
 class TestMissingMetricFailsGate:
