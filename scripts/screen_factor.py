@@ -27,7 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from append_research_log import append_event  # noqa: E402
 
 from nyse_core.attribution import compute_attribution
-from nyse_core.benchmark_construction import compute_sector_neutral_returns
+from nyse_core.benchmark_construction import (
+    compute_characteristic_matched_benchmark,
+    compute_sector_neutral_returns,
+)
 from nyse_core.benchmark_metrics import compute_benchmark_relative_metrics
 from nyse_core.factor_screening import (
     compute_long_short_returns,
@@ -45,7 +48,7 @@ from nyse_core.features.price_volume import (
     compute_momentum_2_12,
 )
 from nyse_core.normalize import rank_percentile
-from nyse_core.schema import COL_CLOSE, COL_DATE, COL_SYMBOL
+from nyse_core.schema import COL_CLOSE, COL_DATE, COL_SYMBOL, COL_VOLUME
 from nyse_core.sector_map_loader import load_gics_sectors
 
 # Maps factor name → (compute_fn, sign_convention, data_source, lookback_days)
@@ -142,6 +145,53 @@ def _build_forward_returns(
 
     if not rows:
         return pd.DataFrame(columns=["date", "symbol", "fwd_ret_5d"])
+    return pd.concat(rows, ignore_index=True)
+
+
+def _build_size_panel(
+    ohlcv: pd.DataFrame,
+    rebalance_dates: list[pd.Timestamp],
+    window_days: int = 20,
+) -> pd.DataFrame:
+    """Size-proxy characteristic panel for iter-4 char_matched_size benchmark.
+
+    Computes a 20-trading-day trailing mean of ``close × volume`` (dollar
+    volume) at each rebalance date. Dollar volume is a market-cap proxy when
+    shares-outstanding isn't in OHLCV — larger firms dominate traded-dollar
+    volume, so bucketing by this monotone proxy matches the intent of a
+    Fama-French-style size-matched benchmark without requiring CRSP fields.
+    Purely diagnostic: does not feed G0-G5.
+    """
+    if ohlcv.empty or not rebalance_dates:
+        return pd.DataFrame(columns=["date", "symbol", "size"])
+
+    panel = ohlcv.copy()
+    panel[COL_DATE] = pd.to_datetime(panel[COL_DATE])
+    panel["dollar_vol"] = panel[COL_CLOSE] * panel[COL_VOLUME]
+    wide = panel.pivot_table(
+        index=COL_DATE, columns=COL_SYMBOL, values="dollar_vol", aggfunc="last"
+    ).sort_index()
+
+    rows: list[pd.DataFrame] = []
+    for ts in rebalance_dates:
+        window = wide.loc[wide.index <= ts].tail(window_days)
+        if window.empty:
+            continue
+        trailing = window.mean(axis=0).dropna()
+        if trailing.empty:
+            continue
+        rows.append(
+            pd.DataFrame(
+                {
+                    "date": ts.date(),
+                    "symbol": trailing.index,
+                    "size": trailing.values,
+                }
+            )
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "symbol", "size"])
     return pd.concat(rows, ignore_index=True)
 
 
@@ -395,6 +445,7 @@ def main() -> int:
     # consumer produces Sharpe_excess / beta / alpha / IR / TE for all three.
     sector_map_path = Path(__file__).resolve().parent.parent / "config" / "gics_sectors_sp500.csv"
     sector_map, _sector_diag = load_gics_sectors(sector_map_path)
+    fwd_wide = pd.DataFrame()
     if not fwd.empty:
         fwd_wide = fwd.pivot(index="date", columns="symbol", values="fwd_ret_5d")
         fwd_wide.index = pd.to_datetime(fwd_wide.index)
@@ -407,6 +458,39 @@ def main() -> int:
                 flush=True,
             )
 
+    # iter-4 characteristic-matched benchmark (size proxy = 20d trailing mean
+    # dollar volume, a monotone market-cap stand-in when shares-outstanding is
+    # absent from OHLCV). Uses the long-leg positive weights from
+    # ``compute_long_short_weights``; the helper bucket-matches the long leg
+    # against a 5-bucket quantile sort on the size proxy and returns the
+    # matched bucket's equal-weight mean. Diagnostic only — does not feed G0-G5.
+    ls_weights = pd.DataFrame(columns=["date", "symbol", "weight"])
+    if not factor_scores.empty:
+        ls_weights, _lw_diag = compute_long_short_weights(factor_scores)
+    if not fwd_wide.empty and not ls_weights.empty:
+        size_long = _build_size_panel(ohlcv, rebalance, window_days=20)
+        if not size_long.empty:
+            size_panel = size_long.pivot(index="date", columns="symbol", values="size")
+            size_panel.index = pd.to_datetime(size_panel.index)
+            long_leg_long = ls_weights[ls_weights["weight"] > 0]
+            if not long_leg_long.empty:
+                long_leg_wide = long_leg_long.pivot(index="date", columns="symbol", values="weight")
+                long_leg_wide.index = pd.to_datetime(long_leg_wide.index)
+                char_matched_ret, _cm_diag = compute_characteristic_matched_benchmark(
+                    daily_returns=fwd_wide,
+                    characteristic_panel=size_panel,
+                    long_leg_weights=long_leg_wide,
+                    n_buckets=5,
+                )
+                if char_matched_ret.notna().any():
+                    benchmark_fwd["char_matched_size"] = char_matched_ret
+                    n_pop = int(char_matched_ret.notna().sum())
+                    print(
+                        f"       char_matched_size fwd-return rows: {n_pop:,} "
+                        f"(proxy=20d mean(close×volume), n_buckets=5)",
+                        flush=True,
+                    )
+
     if benchmark_fwd and len(ls_returns) > 0:
         bench_rel, _bench_diag = compute_benchmark_relative_metrics(
             portfolio_returns=ls_returns,
@@ -415,16 +499,12 @@ def main() -> int:
     else:
         bench_rel = {}
 
-    # iter-3 Brinson factor + sector attribution (diagnostic only). Constructs
-    # per-(date, symbol) long-short weights, feeds them + stock returns +
-    # factor exposures + sector_map to nyse_core.attribution.compute_attribution,
-    # and persists the resulting factor_contributions + sector_contributions
-    # alongside gate metrics. Equal-weight benchmark (Brinson default when
-    # benchmark_weights=None) is used — characteristic-matched benchmark is
-    # deferred to iter-4.
+    # iter-3 Brinson factor + sector attribution (diagnostic only). Reuses the
+    # ``ls_weights`` computed above for the characteristic-matched benchmark so
+    # the long-short decomposition stays canonical across both diagnostics.
+    # Equal-weight benchmark (Brinson default when benchmark_weights=None).
     brinson_payload: dict[str, object] = {}
     if not factor_scores.empty and not fwd.empty and not sector_map.empty:
-        ls_weights, _lw_diag = compute_long_short_weights(factor_scores)
         factor_exposures = factor_scores.rename(columns={"score": "exposure"}).assign(
             factor_name=args.factor
         )[["date", "symbol", "factor_name", "exposure"]]
