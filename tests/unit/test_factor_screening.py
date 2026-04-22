@@ -8,6 +8,7 @@ import pandas as pd
 from nyse_core.contracts import GateVerdict
 from nyse_core.factor_screening import (
     compute_cap_tilted_weights,
+    compute_ensemble_weights,
     compute_long_short_returns,
     compute_long_short_weights,
     compute_volatility_scaled_weights,
@@ -684,6 +685,193 @@ class TestCapTiltedWeights:
         size_panel = size_panel[size_panel["symbol"] != drop_sym].copy()
         weights, _diag = compute_cap_tilted_weights(factor_scores, size_panel)
         assert drop_sym not in weights["symbol"].unique()
+
+
+def _panel_from_scores(factor_scores: pd.DataFrame, score_offset: float = 0.0) -> pd.DataFrame:
+    """Build a score panel from factor_scores by shifting the score column."""
+    out = factor_scores[["date", "symbol", "score"]].copy()
+    out["score"] = out["score"].astype(float) + float(score_offset)
+    return out
+
+
+class TestEnsembleWeights:
+    """Tests for ``compute_ensemble_weights`` (Sharpe-weighted ensemble aggregator)."""
+
+    def test_shape_and_columns(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=4, n_stocks=30, seed=7)
+        panels = {
+            "A": _panel_from_scores(factor_scores, 0.0),
+            "B": _panel_from_scores(factor_scores, 0.5),
+        }
+        sharpes = {"A": 1.0, "B": 0.5}
+        ensemble, _diag = compute_ensemble_weights(panels, sharpes)
+        assert list(ensemble.columns) == ["date", "symbol", "score"]
+        assert len(ensemble) == len(factor_scores)
+
+    def test_equal_sharpes_reduce_to_simple_mean(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=40, seed=11)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = _panel_from_scores(factor_scores, 1.0)
+        ensemble, _diag = compute_ensemble_weights({"A": panel_a, "B": panel_b}, {"A": 1.0, "B": 1.0})
+        merged = ensemble.merge(panel_a, on=["date", "symbol"], suffixes=("", "_a"))
+        merged = merged.merge(panel_b, on=["date", "symbol"], suffixes=("", "_b"))
+        expected = 0.5 * (merged["score_a"].astype(float) + merged["score_b"].astype(float))
+        assert np.allclose(merged["score"].astype(float), expected)
+
+    def test_single_factor_passthrough(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=20, seed=3)
+        panel = _panel_from_scores(factor_scores, 0.25)
+        ensemble, _diag = compute_ensemble_weights({"only": panel}, {"only": 0.7})
+        merged = panel.merge(ensemble, on=["date", "symbol"], suffixes=("_in", "_out"))
+        assert np.allclose(merged["score_in"].astype(float), merged["score_out"].astype(float))
+
+    def test_positive_sharpe_weighting_is_monotone(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=20, seed=5)
+        zeros = factor_scores.copy()
+        zeros["score"] = 0.0
+        ones = factor_scores.copy()
+        ones["score"] = 1.0
+        ensemble_heavy_a, _ = compute_ensemble_weights({"A": zeros, "B": ones}, {"A": 3.0, "B": 1.0})
+        ensemble_heavy_b, _ = compute_ensemble_weights({"A": zeros, "B": ones}, {"A": 1.0, "B": 3.0})
+        # Heavier weight on A (zeros) → lower ensemble; heavier on B (ones) → higher.
+        assert ensemble_heavy_a["score"].mean() < ensemble_heavy_b["score"].mean()
+        assert np.allclose(ensemble_heavy_a["score"], 0.25)
+        assert np.allclose(ensemble_heavy_b["score"], 0.75)
+
+    def test_zero_sharpe_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=15, seed=8)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = factor_scores.copy()
+        panel_b["score"] = 99.0
+        ensemble, _diag = compute_ensemble_weights({"A": panel_a, "B": panel_b}, {"A": 1.5, "B": 0.0})
+        # Only A survives → ensemble equals A.
+        merged = ensemble.merge(panel_a, on=["date", "symbol"], suffixes=("_out", "_in"))
+        assert np.allclose(merged["score_out"].astype(float), merged["score_in"].astype(float))
+        assert 99.0 not in ensemble["score"].tolist()
+
+    def test_negative_sharpe_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=12, seed=2)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = factor_scores.copy()
+        panel_b["score"] = 42.0
+        ensemble, _diag = compute_ensemble_weights({"A": panel_a, "B": panel_b}, {"A": 0.8, "B": -0.5})
+        assert 42.0 not in ensemble["score"].tolist()
+
+    def test_nan_sharpe_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=6)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = factor_scores.copy()
+        panel_b["score"] = 77.0
+        ensemble, _diag = compute_ensemble_weights(
+            {"A": panel_a, "B": panel_b}, {"A": 1.2, "B": float("nan")}
+        )
+        assert 77.0 not in ensemble["score"].tolist()
+
+    def test_inf_sharpe_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=4)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = factor_scores.copy()
+        panel_b["score"] = 55.0
+        ensemble, _diag = compute_ensemble_weights(
+            {"A": panel_a, "B": panel_b}, {"A": 1.0, "B": float("inf")}
+        )
+        assert 55.0 not in ensemble["score"].tolist()
+
+    def test_all_nonpositive_sharpes_returns_empty(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=1)
+        panels = {"A": factor_scores.copy(), "B": factor_scores.copy()}
+        ensemble, _diag = compute_ensemble_weights(panels, {"A": 0.0, "B": -1.0})
+        assert ensemble.empty
+        assert list(ensemble.columns) == ["date", "symbol", "score"]
+
+    def test_empty_factor_score_panels_returns_empty(self):
+        ensemble, _diag = compute_ensemble_weights({}, {})
+        assert ensemble.empty
+        assert list(ensemble.columns) == ["date", "symbol", "score"]
+
+    def test_missing_sharpe_key_returns_empty(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=8, seed=9)
+        ensemble, _diag = compute_ensemble_weights(
+            {"A": factor_scores.copy(), "B": factor_scores.copy()}, {"A": 1.0}
+        )
+        assert ensemble.empty
+
+    def test_empty_panel_factor_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=8, seed=10)
+        good = _panel_from_scores(factor_scores, 0.3)
+        empty = pd.DataFrame(columns=["date", "symbol", "score"])
+        ensemble, _diag = compute_ensemble_weights({"A": good, "B": empty}, {"A": 1.0, "B": 1.0})
+        assert not ensemble.empty
+        merged = ensemble.merge(good, on=["date", "symbol"], suffixes=("_out", "_in"))
+        assert np.allclose(merged["score_out"].astype(float), merged["score_in"].astype(float))
+
+    def test_panel_missing_columns_excluded(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=8, seed=14)
+        good = _panel_from_scores(factor_scores, 0.0)
+        bad = factor_scores.rename(columns={"score": "not_score"})
+        ensemble, _diag = compute_ensemble_weights({"A": good, "B": bad}, {"A": 1.0, "B": 1.0})
+        assert not ensemble.empty
+        # Ensemble comes entirely from A.
+        merged = ensemble.merge(good, on=["date", "symbol"], suffixes=("_out", "_in"))
+        assert np.allclose(merged["score_out"].astype(float), merged["score_in"].astype(float))
+
+    def test_nan_scores_dropped(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=17)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = factor_scores.copy()
+        panel_b["score"] = float("nan")
+        ensemble, _diag = compute_ensemble_weights({"A": panel_a, "B": panel_b}, {"A": 2.0, "B": 1.0})
+        # B contributes nothing; ensemble equals A.
+        merged = ensemble.merge(panel_a, on=["date", "symbol"], suffixes=("_out", "_in"))
+        assert np.allclose(merged["score_out"].astype(float), merged["score_in"].astype(float))
+
+    def test_coverage_mismatch_reweights_per_row(self):
+        """When a factor is missing for specific (date, symbol) pairs, the
+        remaining factors are re-normalized per row so the stock is not
+        penalized for the coverage gap."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=22)
+        panel_a = factor_scores.copy()
+        panel_a["score"] = 0.2
+        panel_b = factor_scores.copy()
+        panel_b["score"] = 0.8
+        # Remove the first (date, symbol) from panel_b so it only has A.
+        drop_mask = (panel_b["date"] == panel_b["date"].iloc[0]) & (
+            panel_b["symbol"] == panel_b["symbol"].iloc[0]
+        )
+        panel_b = panel_b[~drop_mask].copy()
+        ensemble, _diag = compute_ensemble_weights({"A": panel_a, "B": panel_b}, {"A": 1.0, "B": 1.0})
+        # Orphan row (only A) → ensemble score == 0.2.
+        orphan = ensemble[
+            (ensemble["date"] == panel_a["date"].iloc[0]) & (ensemble["symbol"] == panel_a["symbol"].iloc[0])
+        ]
+        assert len(orphan) == 1
+        assert float(orphan["score"].iloc[0]) == 0.2
+        # Rows with both factors → 0.5 of (0.2 + 0.8) == 0.5.
+        both = ensemble.merge(panel_b, on=["date", "symbol"], suffixes=("_out", "_b"))
+        assert np.allclose(both["score_out"].astype(float), 0.5)
+
+    def test_sharpe_weights_normalize(self):
+        """Shared multiplicative scaling of Sharpes must not change the ensemble."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=31)
+        panels = {
+            "A": _panel_from_scores(factor_scores, 0.0),
+            "B": _panel_from_scores(factor_scores, 1.0),
+        }
+        ensemble_low, _ = compute_ensemble_weights(panels, {"A": 0.4, "B": 0.6})
+        ensemble_high, _ = compute_ensemble_weights(panels, {"A": 4.0, "B": 6.0})
+        merged = ensemble_low.merge(ensemble_high, on=["date", "symbol"], suffixes=("_lo", "_hi"))
+        assert np.allclose(merged["score_lo"].astype(float), merged["score_hi"].astype(float))
+
+    def test_weighted_mean_within_bounds(self):
+        factor_scores, _ = _make_factor_data_v2(n_dates=3, n_stocks=25, seed=19)
+        rng = np.random.default_rng(100)
+        rank_a = factor_scores.copy()
+        rank_a["score"] = rng.uniform(0.0, 1.0, size=len(rank_a))
+        rank_b = factor_scores.copy()
+        rank_b["score"] = rng.uniform(0.0, 1.0, size=len(rank_b))
+        ensemble, _diag = compute_ensemble_weights({"A": rank_a, "B": rank_b}, {"A": 0.8, "B": 1.3})
+        assert ensemble["score"].min() >= 0.0
+        assert ensemble["score"].max() <= 1.0
 
 
 class TestMissingMetricFailsGate:

@@ -475,6 +475,159 @@ def compute_cap_tilted_weights(
     return result, diag
 
 
+def compute_ensemble_weights(
+    factor_score_panels: dict[str, pd.DataFrame],
+    factor_sharpes: dict[str, float],
+) -> tuple[pd.DataFrame, Diagnostics]:
+    """Aggregate per-factor score panels into a Sharpe-weighted ensemble score.
+
+    Diagnostic-only multi-factor aggregator. Produces a single ensemble score
+    panel ``[date, symbol, score]`` by taking the Sharpe-weighted mean of
+    per-factor scores at each (date, symbol) pair. Factors with non-positive
+    or non-finite Sharpe are excluded. Weights are normalized to sum to 1
+    over the included factors. Per (date, symbol), the weights are further
+    re-normalized across factors that actually observed that pair, so
+    missing coverage does not penalize a stock.
+    **AP-6 note:** this helper does not alter admission gates, factor sign
+    conventions, or quintile construction. It is a pure side-by-side
+    aggregation sibling to ``compute_long_short_weights``.
+
+    Parameters
+    ----------
+    factor_score_panels : dict[str, pd.DataFrame]
+        Mapping of factor name → score panel with columns
+        ``[date, symbol, score]``. Scores are assumed to be on a common
+        scale (e.g., rank-percentile in [0, 1]) — caller owns the
+        normalization contract.
+    factor_sharpes : dict[str, float]
+        Mapping of factor name → annualized Sharpe ratio used as the
+        weighting signal. Must cover every key in ``factor_score_panels``.
+        Factors with Sharpe ≤ 0 or non-finite are silently excluded (with
+        a diagnostic info).
+
+    Returns
+    -------
+    tuple[pd.DataFrame, Diagnostics]
+        (ensemble score DataFrame with columns ``[date, symbol, score]``,
+        diagnostics).
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}.compute_ensemble_weights"
+
+    if not factor_score_panels:
+        diag.warning(src, "Empty factor_score_panels; returning empty ensemble.")
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    missing_sharpe_keys = set(factor_score_panels.keys()) - set(factor_sharpes.keys())
+    if missing_sharpe_keys:
+        diag.warning(
+            src,
+            f"factor_sharpes missing keys for {sorted(missing_sharpe_keys)}; returning empty ensemble.",
+        )
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    required_cols = {"date", "symbol", "score"}
+    n_excluded_nan_sharpe = 0
+    n_excluded_nonpositive_sharpe = 0
+    n_excluded_empty_panel = 0
+    n_excluded_missing_columns = 0
+
+    included: dict[str, tuple[pd.DataFrame, float]] = {}
+    for factor_name, panel in factor_score_panels.items():
+        raw_sharpe = factor_sharpes[factor_name]
+        try:
+            sharpe_val = float(raw_sharpe)
+        except (TypeError, ValueError):
+            n_excluded_nan_sharpe += 1
+            diag.info(src, f"Factor '{factor_name}' excluded: non-numeric Sharpe.")
+            continue
+        if not np.isfinite(sharpe_val):
+            n_excluded_nan_sharpe += 1
+            diag.info(src, f"Factor '{factor_name}' excluded: non-finite Sharpe.")
+            continue
+        if sharpe_val <= 0.0:
+            n_excluded_nonpositive_sharpe += 1
+            diag.info(
+                src,
+                f"Factor '{factor_name}' excluded: non-positive Sharpe ({sharpe_val:.4f}).",
+            )
+            continue
+        if panel.empty:
+            n_excluded_empty_panel += 1
+            diag.info(src, f"Factor '{factor_name}' excluded: empty score panel.")
+            continue
+        missing_cols = required_cols - set(panel.columns)
+        if missing_cols:
+            n_excluded_missing_columns += 1
+            diag.warning(
+                src,
+                f"Factor '{factor_name}' excluded: panel missing columns {sorted(missing_cols)}.",
+            )
+            continue
+        included[factor_name] = (panel, sharpe_val)
+
+    if n_excluded_nan_sharpe:
+        diag.info(src, f"Excluded {n_excluded_nan_sharpe} factor(s) with non-finite Sharpe.")
+    if n_excluded_nonpositive_sharpe:
+        diag.info(
+            src,
+            f"Excluded {n_excluded_nonpositive_sharpe} factor(s) with non-positive Sharpe.",
+        )
+    if n_excluded_empty_panel:
+        diag.info(src, f"Excluded {n_excluded_empty_panel} factor(s) with empty panel.")
+    if n_excluded_missing_columns:
+        diag.info(
+            src,
+            f"Excluded {n_excluded_missing_columns} factor(s) with missing columns.",
+        )
+
+    if not included:
+        diag.warning(src, "No factors survived inclusion filter; returning empty ensemble.")
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    total_sharpe = sum(sh for _, sh in included.values())
+    if total_sharpe <= 0.0 or not np.isfinite(total_sharpe):
+        diag.warning(src, "Sum of included Sharpes is non-positive; returning empty ensemble.")
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    stacked_frames: list[pd.DataFrame] = []
+    for factor_name, (panel, sharpe_val) in included.items():
+        normalized_weight = sharpe_val / total_sharpe
+        slim = panel[["date", "symbol", "score"]].copy()
+        slim = slim.dropna(subset=["score"])
+        if slim.empty:
+            diag.info(src, f"Factor '{factor_name}' has no non-NaN scores after drop.")
+            continue
+        slim["factor"] = factor_name
+        slim["weight"] = normalized_weight
+        stacked_frames.append(slim)
+
+    if not stacked_frames:
+        diag.warning(src, "No non-NaN scores across included factors; returning empty ensemble.")
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    stacked = pd.concat(stacked_frames, ignore_index=True)
+    stacked["weighted_score"] = stacked["score"].astype(float) * stacked["weight"].astype(float)
+
+    grouped = stacked.groupby(["date", "symbol"], sort=False)
+    numerator = grouped["weighted_score"].sum()
+    denominator = grouped["weight"].sum()
+
+    ensemble_score = (numerator / denominator).rename("score").reset_index()
+    ensemble_score = ensemble_score.dropna(subset=["score"])
+
+    if ensemble_score.empty:
+        diag.warning(src, "Ensemble aggregation produced no rows; returning empty ensemble.")
+        return pd.DataFrame(columns=["date", "symbol", "score"]), diag
+
+    diag.info(
+        src,
+        f"Computed Sharpe-weighted ensemble across {len(included)} factor(s) "
+        f"({ensemble_score['date'].nunique()} dates, {len(ensemble_score)} rows).",
+    )
+    return ensemble_score, diag
+
+
 def _compute_ic_series(
     factor_scores: pd.DataFrame,
     forward_returns: pd.DataFrame,
