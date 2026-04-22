@@ -35,6 +35,7 @@ from nyse_core.benchmark_metrics import compute_benchmark_relative_metrics
 from nyse_core.factor_screening import (
     compute_long_short_returns,
     compute_long_short_weights,
+    compute_volatility_scaled_weights,
     screen_factor,
 )
 from nyse_core.features.fundamental import (
@@ -192,6 +193,54 @@ def _build_size_panel(
 
     if not rows:
         return pd.DataFrame(columns=["date", "symbol", "size"])
+    return pd.concat(rows, ignore_index=True)
+
+
+def _build_vol_panel(
+    ohlcv: pd.DataFrame,
+    rebalance_dates: list[pd.Timestamp],
+    window_days: int = 20,
+) -> pd.DataFrame:
+    """Realized-volatility panel for iter-5 vol-scaled portfolio diagnostic.
+
+    Computes the ``window_days`` trailing standard deviation of daily simple
+    returns at each rebalance Friday for each symbol. Purely diagnostic —
+    never feeds G0-G5. The resulting panel is fed to
+    ``compute_volatility_scaled_weights`` so each long-leg stock's weight is
+    inversely proportional to its own trailing volatility (Carver's
+    position-level vol targeting).
+    """
+    if ohlcv.empty or not rebalance_dates:
+        return pd.DataFrame(columns=["date", "symbol", "vol"])
+
+    panel = ohlcv.copy()
+    panel[COL_DATE] = pd.to_datetime(panel[COL_DATE])
+    close_wide = panel.pivot_table(
+        index=COL_DATE, columns=COL_SYMBOL, values=COL_CLOSE, aggfunc="last"
+    ).sort_index()
+    daily_ret = close_wide.pct_change()
+
+    rows: list[pd.DataFrame] = []
+    for ts in rebalance_dates:
+        window = daily_ret.loc[daily_ret.index <= ts].tail(window_days)
+        if window.empty:
+            continue
+        vol = window.std(axis=0, ddof=1).dropna()
+        vol = vol[vol > 0]
+        if vol.empty:
+            continue
+        rows.append(
+            pd.DataFrame(
+                {
+                    "date": ts.date(),
+                    "symbol": vol.index,
+                    "vol": vol.values,
+                }
+            )
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "symbol", "vol"])
     return pd.concat(rows, ignore_index=True)
 
 
@@ -534,6 +583,69 @@ def main() -> int:
                 flush=True,
             )
 
+    # iter-5 (Wave-2) volatility-scaled long-short portfolio — diagnostic only.
+    # Each stock's weight within its leg is inversely proportional to its
+    # trailing-20d realized volatility (Carver position-level vol targeting).
+    # Compares directly against the equal-weight baseline ``ls_returns`` already
+    # produced by compute_long_short_returns. Never feeds G0-G5.
+    alt_portfolios: dict[str, dict[str, float | int | None]] = {}
+    if not factor_scores.empty and not fwd_wide.empty:
+        vol_long = _build_vol_panel(ohlcv, rebalance, window_days=20)
+        if not vol_long.empty:
+            vol_scaled_weights, _vs_diag = compute_volatility_scaled_weights(
+                factor_scores=factor_scores,
+                vol_panel=vol_long,
+                n_quantiles=5,
+            )
+            if not vol_scaled_weights.empty:
+                vs_w_wide = vol_scaled_weights.pivot(index="date", columns="symbol", values="weight").fillna(
+                    0.0
+                )
+                vs_w_wide.index = pd.to_datetime(vs_w_wide.index)
+                common_dates = vs_w_wide.index.intersection(fwd_wide.index)
+                common_syms = vs_w_wide.columns.intersection(fwd_wide.columns)
+                if len(common_dates) > 0 and len(common_syms) > 0:
+                    w_al = vs_w_wide.loc[common_dates, common_syms]
+                    r_al = fwd_wide.loc[common_dates, common_syms].fillna(0.0)
+                    vs_returns = (w_al * r_al).sum(axis=1)
+                    vs_returns = vs_returns.dropna()
+                    if len(vs_returns) > 1 and vs_returns.std(ddof=1) > 0:
+                        vs_mean = float(vs_returns.mean())
+                        vs_std = float(vs_returns.std(ddof=1))
+                        # 5-day forward returns at weekly cadence → 52 periods/year
+                        vs_sharpe = float(vs_mean / vs_std * (52**0.5))
+                        # Equal-weight comparable
+                        eq_mean = float(ls_returns.mean()) if len(ls_returns) > 1 else None
+                        eq_std = (
+                            float(ls_returns.std(ddof=1))
+                            if len(ls_returns) > 1 and ls_returns.std(ddof=1) > 0
+                            else None
+                        )
+                        eq_sharpe = (
+                            float(eq_mean / eq_std * (52**0.5))
+                            if eq_mean is not None and eq_std is not None
+                            else None
+                        )
+                        alt_portfolios["vol_scaled"] = {
+                            "n_periods": int(len(vs_returns)),
+                            "mean_period_return": vs_mean,
+                            "std_period_return": vs_std,
+                            "sharpe_annualized": vs_sharpe,
+                        }
+                        alt_portfolios["equal_weight_baseline"] = {
+                            "n_periods": int(len(ls_returns.dropna())) if len(ls_returns) > 0 else 0,
+                            "mean_period_return": eq_mean,
+                            "std_period_return": eq_std,
+                            "sharpe_annualized": eq_sharpe,
+                        }
+                        delta = vs_sharpe - eq_sharpe if eq_sharpe is not None else None
+                        delta_str = f"{delta:+.4f}" if delta is not None else "n/a"
+                        print(
+                            f"       vol_scaled portfolio: Sharpe={vs_sharpe:.4f} "
+                            f"(Δ vs equal-weight {delta_str}, n={len(vs_returns)})",
+                            flush=True,
+                        )
+
     # ── Present ────────────────────────────────────────────────────────────
     gate_cfg = {
         "G0": ("oos_sharpe", 0.30, ">="),
@@ -588,6 +700,7 @@ def main() -> int:
                     for ticker, payload in bench_rel.items()
                 },
                 "brinson_attribution": brinson_payload,
+                "alternative_portfolios": alt_portfolios,
             },
             indent=2,
         )

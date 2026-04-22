@@ -196,6 +196,143 @@ def compute_long_short_weights(
     return result, diag
 
 
+def compute_volatility_scaled_weights(
+    factor_scores: pd.DataFrame,
+    vol_panel: pd.DataFrame,
+    n_quantiles: int = 5,
+) -> tuple[pd.DataFrame, Diagnostics]:
+    """Construct volatility-scaled long-short quintile portfolio weights.
+
+    Companion to ``compute_long_short_weights``, but instead of equal-weighting
+    within each leg it scales each stock's weight by ``1 / realized_volatility``
+    so that (in expectation) each position contributes the same variance to the
+    portfolio. This is Carver's vol-targeting applied at the **position level**:
+    a stock three times more volatile than its leg-mates receives one third the
+    dollar allocation.
+
+    Per date:
+      1. Quintile-sort by score (identical construction to
+         ``compute_long_short_weights`` — same ``pd.qcut`` with
+         ``duplicates="drop"`` so iter-0 bit-exactness of quantile membership is
+         preserved).
+      2. For each leg, merge with ``vol_panel`` on (date, symbol); exclude
+         symbols whose vol is NaN or zero (one cannot divide by zero).
+      3. Raw weights ``r_i = 1 / vol_i``. Long-leg weights ``w_i = +r_i /
+         sum(r)`` (sum to +1). Short-leg weights ``w_i = -r_i / sum(r)`` (sum
+         to -1). Middle quintiles remain excluded.
+      4. If a leg has zero valid vols on a date, that leg is skipped for that
+         date (the other leg still emits if valid) and a diagnostic info is
+         recorded.
+
+    Diagnostic-only. No gate (G0-G5) threshold, sign convention, or admission
+    verdict is computed from this helper.
+
+    Parameters
+    ----------
+    factor_scores : pd.DataFrame
+        Columns: ``date``, ``symbol``, ``score``.
+    vol_panel : pd.DataFrame
+        Columns: ``date``, ``symbol``, ``vol``. Realized (e.g., 20d rolling
+        std of daily returns) — caller owns the horizon choice.
+    n_quantiles : int
+        Number of quantile buckets (default 5 for quintiles, matching
+        ``compute_long_short_weights``).
+
+    Returns
+    -------
+    tuple[pd.DataFrame, Diagnostics]
+        (weights DataFrame with columns ``[date, symbol, weight]``, diagnostics).
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}.compute_volatility_scaled_weights"
+
+    if factor_scores.empty:
+        diag.warning(src, "Empty factor_scores; returning empty weights DataFrame.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    if vol_panel.empty:
+        diag.warning(src, "Empty vol_panel; returning empty weights DataFrame.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    required_vol_cols = {"date", "symbol", "vol"}
+    missing_vol_cols = required_vol_cols - set(vol_panel.columns)
+    if missing_vol_cols:
+        diag.warning(src, f"vol_panel missing columns {sorted(missing_vol_cols)}; returning empty.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    dates = sorted(factor_scores["date"].unique())
+    records: list[dict[str, object]] = []
+    n_skipped_insufficient = 0
+    n_skipped_spread = 0
+    n_leg_no_valid_vol = 0
+    n_zero_vol_excluded = 0
+    n_nan_vol_excluded = 0
+
+    for dt in dates:
+        day_data = factor_scores[factor_scores["date"] == dt].dropna(subset=["score"])
+        if len(day_data) < n_quantiles:
+            n_skipped_insufficient += 1
+            continue
+
+        day_data = day_data.copy()
+        day_data["quantile"] = pd.qcut(day_data["score"], q=n_quantiles, labels=False, duplicates="drop")
+        n_labels = day_data["quantile"].nunique()
+        if n_labels < 2:
+            n_skipped_spread += 1
+            continue
+
+        top_q = day_data["quantile"].max()
+        bot_q = day_data["quantile"].min()
+
+        day_vol = vol_panel[vol_panel["date"] == dt][["symbol", "vol"]]
+        merged = day_data.merge(day_vol, on="symbol", how="left")
+
+        for q_label, sign in ((top_q, +1.0), (bot_q, -1.0)):
+            leg = merged[merged["quantile"] == q_label][["symbol", "vol"]].copy()
+            if leg.empty:
+                continue
+            n_nan_vol_excluded += int(leg["vol"].isna().sum())
+            leg = leg.dropna(subset=["vol"])
+            n_zero_vol_excluded += int((leg["vol"] <= 0).sum())
+            leg = leg[leg["vol"] > 0]
+            if leg.empty:
+                n_leg_no_valid_vol += 1
+                continue
+            raw = 1.0 / leg["vol"]
+            total = float(raw.sum())
+            if total <= 0:
+                n_leg_no_valid_vol += 1
+                continue
+            w_leg = sign * raw / total
+            for sym, w in zip(leg["symbol"], w_leg, strict=True):
+                records.append({"date": dt, "symbol": sym, "weight": float(w)})
+
+    if n_skipped_insufficient:
+        diag.info(
+            src,
+            f"Skipped {n_skipped_insufficient} date(s) with fewer rows than n_quantiles.",
+        )
+    if n_skipped_spread:
+        diag.info(src, f"Skipped {n_skipped_spread} date(s) with insufficient quantile spread.")
+    if n_nan_vol_excluded:
+        diag.info(src, f"Excluded {n_nan_vol_excluded} (date, symbol) pairs with NaN vol.")
+    if n_zero_vol_excluded:
+        diag.info(src, f"Excluded {n_zero_vol_excluded} (date, symbol) pairs with zero vol.")
+    if n_leg_no_valid_vol:
+        diag.info(src, f"Skipped {n_leg_no_valid_vol} leg(s) with no valid vols.")
+
+    if not records:
+        diag.warning(src, "No valid dates produced vol-scaled weights.")
+        return pd.DataFrame(columns=["date", "symbol", "weight"]), diag
+
+    result = pd.DataFrame(records)
+    diag.info(
+        src,
+        f"Computed vol-scaled weights for {result['date'].nunique()} dates, {len(result)} rows.",
+    )
+    return result, diag
+
+
 def _compute_ic_series(
     factor_scores: pd.DataFrame,
     forward_returns: pd.DataFrame,

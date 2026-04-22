@@ -25,11 +25,14 @@ The canonical research narrative lives at `docs/NYSE_ALPHA_RESEARCH_RECORD.md` �
 | 1 | A-benchmark | `f3e340e` | `568d10bd...84ed963e` | `benchmark_ohlcv` table + `benchmark_relative_metrics` |
 | 2 | A-benchmark | `9a9378c` | `2a030ef3...b4a42142` | `compute_sector_neutral_returns` (pure helper, sourcing deferred) |
 | 3 | A-benchmark | `0a30f31` | `2c0fe425...ea2620cd` | Static GICS CSV + `sector_map_loader` + Brinson wiring + sector-neutral benchmark wired into `screen_factor.py` |
-| 4 | A-benchmark | pending | `98fd0417...81034de0` | `compute_characteristic_matched_benchmark` pure helper + `char_matched_size` wiring in `screen_factor.py` (size proxy = 20d mean close×volume; 18 tests; ls_weights hoisted; diagnostic only) |
+| 4 | A-benchmark | `28681d2` | `98fd0417...81034de0` | `compute_characteristic_matched_benchmark` pure helper + `char_matched_size` wiring in `screen_factor.py` (size proxy = 20d mean close×volume; 18 tests; ls_weights hoisted; diagnostic only) |
+| 5 | B-portfolio | pending | `c1fa28f0...e38b2bcb` | `compute_volatility_scaled_weights` pure helper (inverse-vol within leg; degenerates to equal-weight when all vols equal) + `_build_vol_panel` (20d trailing std of daily pct_change) + `alternative_portfolios.{vol_scaled,equal_weight_baseline}` persisted in `screening_metrics.json`; 13 tests; diagnostic only |
 
 **Wave 1 (A-benchmark) COMPLETE.** All four benchmark references (SPY, RSP, sector_neutral, char_matched_size) now flow through `compute_benchmark_relative_metrics` in `screen_factor.py`. Gate admission (G0-G5) untouched.
 
-**Current research-log chain tip:** `98fd041704a9de2a4a039b4bb50631818a60750cb6aafdf80b8a28a581034de0` (iter-4, 2026-04-22).
+**Wave 2 (B-portfolio) IN PROGRESS.** iter-5 shipped (vol-scaled long-short). Next: iter-6 market-cap-tilted, iter-7 Sharpe-weighted ensemble, iter-8 risk-parity across legs.
+
+**Current research-log chain tip:** `c1fa28f0b97fb3295e2316ac3a15925a0dc4c81429651dd548a6c411e38b2bcb` (iter-5, 2026-04-22).
 
 ## Next Iteration Scope
 
