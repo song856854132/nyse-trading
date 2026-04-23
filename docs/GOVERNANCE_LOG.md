@@ -1,6 +1,6 @@
 # Governance / Decision Log
 
-> Status: canonical (2026-04-19). This file is the **authorization register** for
+> Status: canonical (2026-04-23). This file is the **authorization register** for
 > the NYSE ATS program. It records *who approved what, when, against what
 > criteria, with what evidence, and with what dissent* — the audit artifact a
 > regulator, LP, or internal Model Risk Committee would ask for.
@@ -48,7 +48,7 @@ This log records authorizations for:
 6. **Every row must reference the commit that lands it.** Added in a
    follow-up amendment row if the commit SHA is not known at authoring time.
 
-## 3. Current program state (as of 2026-04-19)
+## 3. Current program state (as of 2026-04-23)
 
 | Dimension | State |
 |---|---|
@@ -57,7 +57,8 @@ This log records authorizations for:
 | Paper capital simulated | $0 (paper-trade script exists but has not been run per iron rule 7) |
 | Factors admitted to ensemble | **0 of 6** screened so far |
 | Factors rejected on real data | 6: ivol_20d, high_52w, momentum_2_12, piotroski, accruals, profitability |
-| Falsification triggers | Frozen 2026-04-15 (`config/falsification_triggers.yaml:5`) |
+| Falsification triggers | Frozen 2026-04-15 (`config/falsification_triggers.yaml:5`, GL-0001) |
+| Gate family (`config/gates.yaml`) | **Frozen 2026-04-23 in-force family** (see GL-0010). sha256 `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`. In-force since commit `339fa10` (2026-04-18); formally authorized and canonicalized by GL-0010 on 2026-04-23 after iter-9 / iter-10 / iter-10-supplemental gate-calibration audit. Plan-of-record §gates.yaml amended to match in the same iter-11 commit |
 | Holdout window | 2024-2025 — **untouched** (iron rule 1) |
 | Next authorization-relevant milestone | First factor that clears G0-G5 on real data (currently 0/6) |
 
@@ -76,6 +77,8 @@ Schema: `decision_id | date (UTC) | decision | approver(s) | criteria cited | ev
 | GL-0007 | 2026-04-18 | **Reject factor `accruals`** after G0-G5 screen. Framework-side decision: do not admit to ensemble. | Operator (solo) | `config/gates.yaml` G0-G5 | `results/factors/accruals/gate_results.json`; research-log line 16 + line 19 (`factor_screening`, `accruals`, `verdict=FAIL`) | None recorded. |
 | GL-0008 | 2026-04-18 | **Reject factor `profitability`** after G0-G5 screen. Framework-side decision: do not admit to ensemble. | Operator (solo) | `config/gates.yaml` G0-G5 | `results/factors/profitability/gate_results.json`; research-log line 17 + line 20 (`factor_screening`, `profitability`, `verdict=FAIL`) | None recorded. |
 | GL-0009 | 2026-04-18 | **Acknowledge 6-of-6 factor-failure state and pause factor-admission decisions**. Program remains in research. No paper trade authorization requested. Next step: methodology review (label timing, purge gap, universe construction) per `docs/TODOS.md` TODO-24 escalation note before admitting more factors. | Operator (solo) | Plan `/home/song856854132/.claude/plans/dreamy-riding-quasar.md` §verification; RALPH_LOOP_TASK iron rule 7 | research-log line 21 (`doc_gap_closure_v2`); commit `588ffce docs: sync documentation to 6/6 factor-failure state (2026-04-18)` | None recorded. |
+| GL-0010 | 2026-04-23 | **Authorize correction path A and freeze in-force gate family**. `config/gates.yaml` (sha256 `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`: G0=oos_sharpe≥0.30, G1=permutation_p<0.05, G2=ic_mean≥0.02, G3=ic_ir≥0.50, G4=max_drawdown≥-0.30, G5=marginal_contribution>0.0) is the canonical gate family going forward. Plan-of-record §gates.yaml and `docs/templates/factor_screen_memo.md` §3 are amended in the same iter-11 commit to match. Retains all screening work since 2026-04-18 (GL-0002..GL-0008 evidence files unchanged). Scope of this freeze does NOT restore the plan's redundancy (G2 max_corr), full-sample-robustness (G4 IS-vs-OOS Sharpe delta), date-gap-hygiene (G5 baseline date gap), or universe-coverage (G0 coverage%) guards; re-visitation deferred to Wave 4+ if needed (see `docs/audit/gate_mismatch_root_cause_and_consequences.md` §4 forward-looking mitigation note). | Operator (solo, 2026-04-23) | AP-6 (plan §anti-patterns); iron rule 8 (gates frozen before first use — satisfied technically by `339fa10` 2026-04-18; canonicalized here); audit memo GCA-2026-04-23 `docs/audit/gate_calibration_audit.md` (commit `ead47d8`); audit memo GCA-2026-04-23-supplemental `docs/audit/gate_mismatch_root_cause_and_consequences.md` (commit `fdc5952`) | `config/gates.yaml` (sha256 `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`, unchanged); `docs/audit/gate_calibration_audit.md` (commit `ead47d8`); `docs/audit/gate_mismatch_root_cause_and_consequences.md` (commit `fdc5952`); research-log iter-10 presentation event (commit `63821f4`, hash `677f39bf37926e4f540d5577ccebf297e3a96125ab5c88eef2dc09af97f814ab`); research-log iter-10-supplemental event (hash `061334bf9de08c4d228d5b2093fc2208db010cf83b9c742515d7b514c26fd6b2`); iter-11 path-A application commit (this commit) | None recorded. |
+| GL-0011 | 2026-04-23 | **Clarify GL-0002 through GL-0008 evidence-vs-rationale family mismatch** (supersedes the interpretation of the `Criteria cited` column in those seven rows without editing them). The `Criteria cited` columns of GL-0002..GL-0008 quote the plan's pre-amendment gate family (G0 coverage, G1 ic_ir≥0.02, G2 corr, G3 OOS Sharpe delta, G4 full-sample Sharpe delta, G5 date gap); the linked `Evidence` files (`results/factors/*/gate_results.json`) were produced by the in-force gate family (oos_sharpe, permutation_p, ic_mean, ic_ir≥0.50, max_drawdown, marginal_contribution) canonicalized here at GL-0010. The 7 reject decisions are re-affirmed under the in-force family: each of ivol_20d / high_52w / momentum_2_12 / piotroski / accruals / profitability failed ≥ 3 of 6 in-force gates. All 6 verdicts remain FAIL; no factor admission changes; no evidence files modified. Iron-rule append-only is preserved: GL-0002..GL-0008 themselves are not edited. | Operator (solo, 2026-04-23) | GL-0010 (in-force family freeze); in-force gate evidence in `results/factors/*/gate_results.json` (unchanged); iron rule 1 of §2 (append-only) | `results/factors/ivol_20d/gate_results.json`; `results/factors/high_52w/gate_results.json`; `results/factors/momentum_2_12/gate_results.json`; `results/factors/piotroski/gate_results.json`; `results/factors/accruals/gate_results.json`; `results/factors/profitability/gate_results.json` (all `passed_all=False` under in-force gates); `docs/audit/gate_calibration_audit.md` §4-§5 per-factor in-force verdict tables; GL-0002..GL-0008 evidence columns (unchanged) | None recorded. |
 
 ## 5. Pending authorization points (criteria frozen; decisions not yet due)
 
@@ -117,8 +120,8 @@ a clean rewrite.
 |---|---|
 | Owner | Operator (solo, as of 2026-04-19) |
 | Review cadence | On every row append (live), plus quarterly sweep for stale pending authorization points |
-| Last reviewed | 2026-04-19 (iter-15, TODO-19 close) |
-| Next review due | 2026-07-19 or on next authorization event, whichever comes first |
+| Last reviewed | 2026-04-23 (iter-11 of 20-iter research loop, GL-0010 + GL-0011 land per correction path A) |
+| Next review due | 2026-07-23 or on next authorization event, whichever comes first |
 | Escalation path | Operator → Model Risk Committee (not yet seated) → External validator (not yet contracted per `docs/MODEL_VALIDATION.md` §1.5) |
 
 ## 8. Cross-references

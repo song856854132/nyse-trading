@@ -96,18 +96,28 @@ holdout-path-guard pre-commit hook + the `HoldoutLeakageError` test in
 ## 3. G0–G5 gate verdicts
 
 Each gate row cites the metric, the observed value, the frozen threshold
-from `config/gates.yaml`, the direction (≥ or <), and a one-line
+from `config/gates.yaml`, the direction (≥, <, or >), and a one-line
 interpretation. AP-6 is absolute: **thresholds are not edited after a
 screen result is observed.**
 
+**Amendment note (2026-04-23).** The gate family below was canonicalized to the
+in-force `config/gates.yaml` family (sha256 `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`)
+under `docs/GOVERNANCE_LOG.md` GL-0010 (correction path A) on 2026-04-23.
+Memos authored before 2026-04-23 that reference the pre-amendment family
+(coverage / ic_ir@0.02 / max_corr / sharpe_delta / fullsample_delta / date_gap)
+are historical; the active gate family is the one shown below. See
+`docs/audit/gate_calibration_audit.md` (GCA-2026-04-23) and
+`docs/audit/gate_mismatch_root_cause_and_consequences.md` (GCA-2026-04-23-supplemental)
+for full audit context.
+
 | Gate | Name | Metric | Observed | Threshold | Direction | Verdict |
 |---|---|---|---:|---:|:---:|:---:|
-| G0 | Coverage | universe_coverage_pct | ⬛ | 0.50 | ≥ | PASS ∣ FAIL |
-| G1 | Standalone | ic_ir | ⬛ | 0.02 | ≥ | PASS ∣ FAIL |
-| G2 | Redundancy | max_corr_with_existing | ⬛ | 0.50 | < | PASS ∣ FAIL |
-| G3 | Walk-forward | oos_sharpe_delta_vs_baseline | ⬛ | 0.00 | > | PASS ∣ FAIL |
-| G4 | Full sample | full_sample_sharpe_delta | ⬛ | 0.00 | > | PASS ∣ FAIL |
-| G5 | Date align | baseline_date_gap_days | ⬛ | 30 | ≤ | PASS ∣ FAIL |
+| G0 | OOS Sharpe | oos_sharpe | ⬛ | 0.30 | ≥ | PASS ∣ FAIL |
+| G1 | Significance | permutation_p | ⬛ | 0.05 | < | PASS ∣ FAIL |
+| G2 | IC mean | ic_mean | ⬛ | 0.02 | ≥ | PASS ∣ FAIL |
+| G3 | IC_IR | ic_ir | ⬛ | 0.50 | ≥ | PASS ∣ FAIL |
+| G4 | Max drawdown | max_drawdown | ⬛ | -0.30 | ≥ | PASS ∣ FAIL |
+| G5 | Marginal contribution | marginal_contribution | ⬛ | 0.00 | > | PASS ∣ FAIL |
 
 **Gate interpretation (3 sentences max per gate).** For each failing gate,
 explain what the number means and what would need to change for it to pass
