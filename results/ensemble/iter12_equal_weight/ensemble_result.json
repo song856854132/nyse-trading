@@ -1,0 +1,55 @@
+{
+  "iter": "12",
+  "wave": "D_multi_factor_admission",
+  "variant": "equal_weight_diagnostic",
+  "start_date": "2016-01-01",
+  "end_date": "2023-12-31",
+  "n_rebalance_dates": 418,
+  "registered_signal_factors": [
+    "52w_high_proximity",
+    "accruals",
+    "earnings_sentiment",
+    "earnings_surprise",
+    "ivol_20d",
+    "momentum_2_12",
+    "piotroski_f_score",
+    "profitability",
+    "sentiment_dispersion",
+    "sentiment_surprise",
+    "short_interest_change",
+    "short_interest_pct",
+    "short_ratio"
+  ],
+  "included_factors": [
+    "52w_high_proximity",
+    "accruals",
+    "ivol_20d",
+    "momentum_2_12",
+    "piotroski_f_score",
+    "profitability"
+  ],
+  "excluded_factors": {
+    "earnings_sentiment": "no_scores_produced_data_source_absent_or_compute_failed",
+    "earnings_surprise": "no_scores_produced_data_source_absent_or_compute_failed",
+    "sentiment_dispersion": "no_scores_produced_data_source_absent_or_compute_failed",
+    "sentiment_surprise": "no_scores_produced_data_source_absent_or_compute_failed",
+    "short_interest_change": "no_scores_produced_data_source_absent_or_compute_failed",
+    "short_interest_pct": "no_scores_produced_data_source_absent_or_compute_failed",
+    "short_ratio": "no_scores_produced_data_source_absent_or_compute_failed"
+  },
+  "aggregator": "compute_ensemble_weights",
+  "aggregator_sharpes": "equal_1.0_per_included_factor",
+  "quintile_construction": "compute_long_short_weights_n_quantiles_5",
+  "summary": {
+    "n_periods": 415,
+    "oos_sharpe": -0.12296865071403996,
+    "ic_mean": 0.009272366499433516,
+    "ic_ir": 0.04731409799448248,
+    "max_drawdown": -0.3618139253852508,
+    "permutation_p": 1.0,
+    "permutation_reps": 500,
+    "annualization_periods_per_year": 52
+  },
+  "ap6_verdict": "diagnostic_only_no_gate_comparison_no_admission_change",
+  "config_gates_yaml_sha256": "521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4"
+}
