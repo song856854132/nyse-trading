@@ -100,15 +100,23 @@ from `config/gates.yaml`, the direction (≥, <, or >), and a one-line
 interpretation. AP-6 is absolute: **thresholds are not edited after a
 screen result is observed.**
 
-**Amendment note (2026-04-23).** The gate family below was canonicalized to the
-in-force `config/gates.yaml` family (sha256 `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`)
-under `docs/GOVERNANCE_LOG.md` GL-0010 (correction path A) on 2026-04-23.
-Memos authored before 2026-04-23 that reference the pre-amendment family
-(coverage / ic_ir@0.02 / max_corr / sharpe_delta / fullsample_delta / date_gap)
-are historical; the active gate family is the one shown below. See
-`docs/audit/gate_calibration_audit.md` (GCA-2026-04-23) and
-`docs/audit/gate_mismatch_root_cause_and_consequences.md` (GCA-2026-04-23-supplemental)
-for full audit context.
+**Amendment note (2026-04-23 iter-11-D — supersedes the iter-11 path-A amendment note).**
+The gate family shown below (the in-force `config/gates.yaml` family, sha256
+`521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4`) is **PROVISIONAL
+pending v2 pre-registration in iter-13+ of Wave 4**. iter-11 canonicalized this
+family under `docs/GOVERNANCE_LOG.md` GL-0010 (correction path A); iter-11-D
+reverses that canonicalization under GL-0012 in response to adversarial governance
+review (via `/codex` consult, session `019dba41-f163-70e1-875b-909771c26083`) that
+identified GL-0010 as establishing an AP-6-incompatible institutional precedent
+("implementation beats plan-of-record when implementation happened to land first").
+Memos instantiated from this template against the current (provisional) family are
+**engineering outputs**, not canonical admission decisions. A fresh instantiation
+under the v2 gate family (pending iter-13+) will be required before any new factor
+admission is cited. See `docs/audit/gate_calibration_audit.md` (GCA-2026-04-23),
+`docs/audit/gate_mismatch_root_cause_and_consequences.md` (GCA-2026-04-23-supplemental),
+`docs/GOVERNANCE_LOG.md` GL-0010 (canonicalization, superseded), GL-0011 (preserved
+FAIL verdicts re-affirmation), GL-0012 (reversal), and GL-0013 (Phase 3 exit
+target renegotiation via PATH E) for full context.
 
 | Gate | Name | Metric | Observed | Threshold | Direction | Verdict |
 |---|---|---|---:|---:|:---:|:---:|
