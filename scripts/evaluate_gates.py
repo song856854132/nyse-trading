@@ -11,6 +11,17 @@ def main() -> int:
     parser.add_argument("--config-dir", type=Path, default=Path("config/"), help="Config directory")
     parser.add_argument("--db-path", type=Path, required=True, help="Path to research.duckdb")
     parser.add_argument("--factor", required=True, help="Factor name to evaluate")
+    parser.add_argument(
+        "--gates-version",
+        choices=("v1", "v2"),
+        default="v1",
+        help=(
+            "Gate family to apply. 'v1' -> config/gates.yaml (in-force; sha256 "
+            "521b7571...f559af4). 'v2' -> config/gates_v2.yaml (V2-PREREG-2026-04-24 "
+            "per GL-0014/GL-0015; use for iter-16 re-screen at results/factors/*/"
+            "gate_results_v2.json, does NOT overwrite canonical GL-0002..GL-0008)."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -23,22 +34,16 @@ def main() -> int:
 
     try:
         configs = load_and_validate_config(args.config_dir)
-        gates_cfg = configs["gates.yaml"]
+        gates_filename = "gates.yaml" if args.gates_version == "v1" else "gates_v2.yaml"
+        gates_cfg = configs[gates_filename]
         store = ResearchStore(args.db_path)
 
-        # Build gate_config dict from the validated GatesConfig model
+        # Build gate_config dict from the validated GatesConfig model.
+        # Schema keys are G0..G5 (see nyse_core.config_schema.GatesConfig).
         gate_config = {}
-        for gate_name in (
-            "G0_coverage",
-            "G1_standalone",
-            "G2_redundancy",
-            "G3_walk_forward",
-            "G4_full_sample",
-            "G5_date_align",
-        ):
+        for gate_name in ("G0", "G1", "G2", "G3", "G4", "G5"):
             gcfg = getattr(gates_cfg, gate_name)
-            short_name = gate_name.split("_")[0]
-            gate_config[short_name] = {
+            gate_config[gate_name] = {
                 "metric": gcfg.metric,
                 "threshold": gcfg.threshold,
                 "direction": gcfg.direction,
@@ -52,7 +57,7 @@ def main() -> int:
             gate_config=gate_config,
         )
 
-        print(f"Factor: {args.factor}")
+        print(f"Factor: {args.factor}  (gates={args.gates_version} -> {gates_filename})")
         print(f"{'Gate':<6} {'Metric':<25} {'Value':>10} {'Threshold':>10} {'Result':>8}")
         print("-" * 65)
         for gate_name, passed in sorted(verdict.gate_results.items()):

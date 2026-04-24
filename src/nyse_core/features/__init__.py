@@ -33,7 +33,9 @@ def register_all_factors(registry: FactorRegistry) -> None:
     """Register all Tier 1 + Tier 2 factors with correct sign conventions.
 
     Tier 1 — Price/Volume:
-      ivol_20d           sign=-1  SIGNAL  (low IVOL = buy)
+      ivol_20d           sign=-1  SIGNAL  (low IVOL = buy, traditional low-vol anomaly)
+      ivol_20d_flipped   sign=+1  SIGNAL  (high IVOL = buy; V2-PREREG-2026-04-24
+                                           Stream 5 evidence, 2016-2023 low-vol reversal)
       52w_high_proximity sign=+1  SIGNAL  (near high = buy)
       momentum_2_12      sign=+1  SIGNAL  (high past return = buy)
 
@@ -52,6 +54,19 @@ def register_all_factors(registry: FactorRegistry) -> None:
         usage_domain=UsageDomain.SIGNAL,
         sign_convention=-1,
         description="Idiosyncratic volatility (20-day std of returns). Low IVOL = buy.",
+    )
+    registry.register(
+        name="ivol_20d_flipped",
+        compute_fn=compute_ivol_20d,
+        usage_domain=UsageDomain.SIGNAL,
+        sign_convention=1,
+        description=(
+            "Idiosyncratic volatility, flipped direction (high IVOL = buy). "
+            "V2-PREREG-2026-04-24 active_v2_factor_universe member; Stream 5 evidence "
+            "showed raw ivol_20d sign=-1 produced Sharpe -1.916 and sign-flipped produced "
+            "+1.922 on 2016-2023 US large-cap (QE-regime reversal of traditional low-vol "
+            "anomaly). Canonical ivol_20d registration preserved unchanged per GL-0011."
+        ),
     )
     registry.register(
         name="52w_high_proximity",

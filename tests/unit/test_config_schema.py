@@ -37,12 +37,13 @@ class TestValidConfigLoading:
     """All config/*.yaml files must pass Pydantic validation."""
 
     def test_all_configs_load_successfully(self) -> None:
-        """load_and_validate_config should return 6 validated models."""
+        """load_and_validate_config should return 7 validated models (v1 + v2 gates coexist)."""
         configs = load_and_validate_config(CONFIG_DIR)
-        assert len(configs) == 6
+        assert len(configs) == 7
         assert "market_params.yaml" in configs
         assert "strategy_params.yaml" in configs
         assert "gates.yaml" in configs
+        assert "gates_v2.yaml" in configs  # V2-PREREG-2026-04-24 (GL-0014/GL-0015)
         assert "falsification_triggers.yaml" in configs
         assert "data_sources.yaml" in configs
         assert "deployment_ladder.yaml" in configs
@@ -77,6 +78,40 @@ class TestValidConfigLoading:
         assert gc.G0.threshold == 0.3
         assert gc.G1.direction == "<"
         assert gc.G5.threshold == 0.0
+
+    def test_gates_v2_values(self) -> None:
+        """gates_v2.yaml should parse under GatesConfig with V2-PREREG-2026-04-24 thresholds.
+
+        Thresholds are frozen by GL-0014 / GL-0015 no-renegotiation clause. Any change
+        here without a supersession row in docs/GOVERNANCE_LOG.md is an AP-6 violation.
+        """
+        configs = load_and_validate_config(CONFIG_DIR)
+        gc = configs["gates_v2.yaml"]
+        assert isinstance(gc, GatesConfig)
+        # G0 retained from v1
+        assert gc.G0.metric == "oos_sharpe"
+        assert gc.G0.threshold == 0.30
+        assert gc.G0.direction == ">="
+        # G1 retained from v1
+        assert gc.G1.metric == "permutation_p"
+        assert gc.G1.threshold == 0.05
+        assert gc.G1.direction == "<"
+        # G2 lowered from 0.02 to 0.005 (floor 0.008 - eps 0.003 on 1-2-5x10^k lattice)
+        assert gc.G2.metric == "ic_mean"
+        assert gc.G2.threshold == 0.005
+        assert gc.G2.direction == ">="
+        # G3 lowered from 0.50 to 0.05 (floor 0.062 - eps 0.012)
+        assert gc.G3.metric == "ic_ir"
+        assert gc.G3.threshold == 0.05
+        assert gc.G3.direction == ">="
+        # G4 retained from v1
+        assert gc.G4.metric == "max_drawdown"
+        assert gc.G4.threshold == -0.30
+        assert gc.G4.direction == ">="
+        # G5 redefined: max_return_decile_corr_with_admitted replaces marginal_contribution
+        assert gc.G5.metric == "max_return_decile_corr_with_admitted"
+        assert gc.G5.threshold == 0.90
+        assert gc.G5.direction == "<="
 
     def test_falsification_triggers_values(self) -> None:
         """falsification_triggers.yaml should parse all triggers."""

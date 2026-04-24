@@ -62,6 +62,11 @@ from nyse_core.sector_map_loader import load_gics_sectors
 # delta-based signals (Piotroski F3/F5/F6/F7/F8/F9).
 _FACTORS = {
     "ivol_20d": (compute_ivol_20d, -1, "ohlcv", 30),
+    # V2-PREREG-2026-04-24 active_v2_factor_universe member. Same compute
+    # function as ivol_20d; sign=+1 means raw (un-negated) IVOL is ranked
+    # so high IVOL = high score = buy. Stream 5 evidence: 2016-2023 US
+    # large-cap exhibited QE-regime reversal of low-vol anomaly.
+    "ivol_20d_flipped": (compute_ivol_20d, +1, "ohlcv", 30),
     "high_52w": (compute_52w_high_proximity, +1, "ohlcv", 260),
     "momentum_2_12": (compute_momentum_2_12, +1, "ohlcv", 260),
     "piotroski": (compute_piotroski_f_score, +1, "fundamentals", 400),

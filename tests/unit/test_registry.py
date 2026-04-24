@@ -223,3 +223,39 @@ class TestMultiDatasetRouting:
 
         assert "needs_missing" not in result.columns
         assert diag.has_warnings
+
+
+class TestV2ActiveFactorRegistration:
+    """iter-16 task #137: ivol_20d_flipped registered per V2-PREREG-2026-04-24.
+
+    Canonical ivol_20d (sign=-1) remains unchanged — GL-0011 FAIL-verdict
+    invariance is preserved. ivol_20d_flipped is a distinct factor name that
+    reuses the same compute_fn but with sign_convention=+1, producing the
+    economically opposite rank order (Stream 5 evidence: 2016-2023 QE-regime
+    low-vol reversal).
+    """
+
+    def test_ivol_20d_flipped_registered_with_opposite_sign(self) -> None:
+        from nyse_core.features import register_all_factors
+
+        reg = FactorRegistry()
+        register_all_factors(reg)
+
+        entries = reg._factors  # access private for registration-invariant check
+        assert "ivol_20d" in entries
+        assert "ivol_20d_flipped" in entries
+        assert entries["ivol_20d"].sign_convention == -1
+        assert entries["ivol_20d_flipped"].sign_convention == +1
+        # Same compute function — flip is applied at sign-inversion, not in compute_fn.
+        assert entries["ivol_20d"].compute_fn is entries["ivol_20d_flipped"].compute_fn
+
+    def test_sign_plus1_and_minus1_yield_negated_series(self) -> None:
+        """sign=-1 on compute_fn X yields the negation of sign=+1 on the same X."""
+        reg = FactorRegistry()
+        reg.register("low_buy", _dummy_factor_pos, UsageDomain.SIGNAL, -1, "low=buy")
+        reg.register("high_buy", _dummy_factor_pos, UsageDomain.SIGNAL, +1, "high=buy")
+
+        result, _ = reg.compute_all({"ohlcv": _make_data()}, date(2025, 1, 15))
+
+        # Sum per-row must be zero (X + (-X) = 0).
+        assert np.allclose((result["low_buy"] + result["high_buy"]).to_numpy(), 0.0)

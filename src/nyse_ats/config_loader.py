@@ -33,6 +33,11 @@ def load_and_validate_config(config_dir: Path) -> dict[str, BaseModel]:
         "market_params.yaml": MarketParams,
         "strategy_params.yaml": StrategyParams,
         "gates.yaml": GatesConfig,
+        # V2-PREREG-2026-04-24 (GL-0014, GL-0015): v2 gate family is pre-registered
+        # but NOT YET WIRED into admission decisions. Both files coexist; gates.yaml
+        # remains operationally in-force until a scripts/evaluate_gates.py run with
+        # --gates-version v2 activates v2 thresholds against a re-screen.
+        "gates_v2.yaml": GatesConfig,
         "falsification_triggers.yaml": FalsificationTriggersConfig,
         "data_sources.yaml": DataSourcesConfig,
         "deployment_ladder.yaml": DeploymentLadderConfig,
