@@ -7,6 +7,7 @@ import pandas as pd
 
 from nyse_core.contracts import GateVerdict
 from nyse_core.factor_screening import (
+    _compute_max_return_decile_corr_with_admitted,
     compute_cap_tilted_weights,
     compute_ensemble_weights,
     compute_long_short_returns,
@@ -873,6 +874,281 @@ class TestEnsembleWeights:
         ensemble, _diag = compute_ensemble_weights({"A": rank_a, "B": rank_b}, {"A": 0.8, "B": 1.3})
         assert ensemble["score"].min() >= 0.0
         assert ensemble["score"].max() <= 1.0
+
+
+class TestEnsembleWeightsCoverageGate:
+    """V2-PREREG-2026-04-24 K-of-N coverage gate on compute_ensemble_weights.
+
+    K=3-of-N=5 drops (date, symbol) pairs observed by fewer than 3 of the 5
+    active_v2 factors before re-normalization. Default K=1 preserves legacy
+    behaviour.
+    """
+
+    def _sparsify(
+        self,
+        factor_scores: pd.DataFrame,
+        symbols_to_nan: list[str],
+    ) -> pd.DataFrame:
+        """Return a copy with scores set to NaN for the given symbols."""
+        out = factor_scores.copy()
+        out.loc[out["symbol"].isin(symbols_to_nan), "score"] = np.nan
+        return out
+
+    def test_k1_default_preserves_legacy_behaviour(self) -> None:
+        """min_factor_coverage=1 (default) emits every observed pair."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=4, n_stocks=20, seed=5)
+        panels = {
+            "A": _panel_from_scores(factor_scores, 0.0),
+            "B": _panel_from_scores(factor_scores, 0.2),
+            "C": _panel_from_scores(factor_scores, 0.4),
+        }
+        sharpes = {"A": 1.0, "B": 1.0, "C": 1.0}
+        default, _ = compute_ensemble_weights(panels, sharpes)
+        k1, _ = compute_ensemble_weights(panels, sharpes, min_factor_coverage=1)
+        pd.testing.assert_frame_equal(
+            default.sort_values(["date", "symbol"]).reset_index(drop=True),
+            k1.sort_values(["date", "symbol"]).reset_index(drop=True),
+        )
+
+    def test_k_of_n_drops_thinly_covered_pairs(self) -> None:
+        """K=3 drops pairs observed by only 2 of 5 factors."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=17)
+        symbols = sorted(factor_scores["symbol"].unique())
+        thin = symbols[:3]  # 3 symbols only observed by factors A and B.
+        full_panel = _panel_from_scores(factor_scores, 0.0)
+        thin_panel_a = _panel_from_scores(factor_scores, 0.1)
+        thin_panel_b = _panel_from_scores(factor_scores, 0.2)
+        # Drop thin symbols from C, D, E → they'll have coverage=2 (only A, B see them).
+        c = self._sparsify(_panel_from_scores(factor_scores, 0.3), thin).dropna(subset=["score"])
+        d = self._sparsify(_panel_from_scores(factor_scores, 0.4), thin).dropna(subset=["score"])
+        e = self._sparsify(_panel_from_scores(factor_scores, 0.5), thin).dropna(subset=["score"])
+        panels = {"A": full_panel, "B": thin_panel_a, "C": c, "D": d, "E": e}
+        # Need at least one factor per key — just pass A, B as substitutes.
+        panels["A"] = full_panel
+        panels["B"] = thin_panel_b
+        sharpes = dict.fromkeys(panels, 1.0)
+        ensemble, diag = compute_ensemble_weights(panels, sharpes, min_factor_coverage=3)
+        # Thin symbols should be entirely absent from the ensemble output.
+        assert ensemble.loc[ensemble["symbol"].isin(thin)].empty
+        # Remaining symbols must still be present on every date.
+        survivor_syms = set(ensemble["symbol"].unique())
+        assert survivor_syms == set(symbols) - set(thin)
+        assert any("K-of-N coverage gate" in m.message for m in diag.messages)
+
+    def test_k_equals_n_requires_full_coverage(self) -> None:
+        """K==N drops any pair missing even one factor."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=8, seed=23)
+        symbols = sorted(factor_scores["symbol"].unique())
+        missing = symbols[:2]
+        a = _panel_from_scores(factor_scores, 0.0)
+        b = _panel_from_scores(factor_scores, 0.1)
+        c = self._sparsify(_panel_from_scores(factor_scores, 0.2), missing).dropna(subset=["score"])
+        panels = {"A": a, "B": b, "C": c}
+        sharpes = {"A": 1.0, "B": 1.0, "C": 1.0}
+        ensemble, _ = compute_ensemble_weights(panels, sharpes, min_factor_coverage=3)
+        # Symbols missing from C drop entirely.
+        assert ensemble.loc[ensemble["symbol"].isin(missing)].empty
+        # Full-coverage symbols survive.
+        kept = set(ensemble["symbol"].unique())
+        assert kept == set(symbols) - set(missing)
+
+    def test_k_zero_is_treated_as_k_equals_one(self) -> None:
+        """min_factor_coverage ≤ 1 never drops pairs (guard branch)."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=5, seed=11)
+        panel_a = _panel_from_scores(factor_scores, 0.0)
+        panel_b = _panel_from_scores(factor_scores, 0.5)
+        sharpes = {"A": 1.0, "B": 1.0}
+        zero, _ = compute_ensemble_weights({"A": panel_a, "B": panel_b}, sharpes, min_factor_coverage=0)
+        one, _ = compute_ensemble_weights({"A": panel_a, "B": panel_b}, sharpes, min_factor_coverage=1)
+        pd.testing.assert_frame_equal(zero, one)
+
+    def test_k_higher_than_n_empties_ensemble(self) -> None:
+        """K larger than total included factors drops every pair."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=6, seed=29)
+        panels = {
+            "A": _panel_from_scores(factor_scores, 0.0),
+            "B": _panel_from_scores(factor_scores, 0.5),
+        }
+        sharpes = {"A": 1.0, "B": 1.0}
+        ensemble, diag = compute_ensemble_weights(panels, sharpes, min_factor_coverage=5)
+        assert ensemble.empty
+        assert any("produced no rows" in m.message for m in diag.messages)
+
+    def test_coverage_gate_preserves_weighted_score_on_survivors(self) -> None:
+        """Surviving pairs keep the same weighted-mean score as the K=1 path."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=10, seed=37)
+        symbols = sorted(factor_scores["symbol"].unique())
+        thin = symbols[:4]
+        a = _panel_from_scores(factor_scores, 0.0)
+        b = _panel_from_scores(factor_scores, 0.2)
+        c = self._sparsify(_panel_from_scores(factor_scores, 0.4), thin).dropna(subset=["score"])
+        panels = {"A": a, "B": b, "C": c}
+        sharpes = {"A": 1.0, "B": 1.0, "C": 1.0}
+        baseline, _ = compute_ensemble_weights(panels, sharpes, min_factor_coverage=1)
+        gated, _ = compute_ensemble_weights(panels, sharpes, min_factor_coverage=3)
+        # For survivors (not in thin), the gated and baseline scores must match exactly.
+        survivors = (
+            baseline[~baseline["symbol"].isin(thin)].sort_values(["date", "symbol"]).reset_index(drop=True)
+        )
+        gated_sorted = gated.sort_values(["date", "symbol"]).reset_index(drop=True)
+        pd.testing.assert_frame_equal(survivors, gated_sorted)
+
+    def test_coverage_gate_with_v2_k3_n5_construction_grammar(self) -> None:
+        """K=3-of-N=5 is the V2-PREREG-2026-04-24 active-universe setting."""
+        factor_scores, _ = _make_factor_data_v2(n_dates=2, n_stocks=12, seed=47)
+        symbols = sorted(factor_scores["symbol"].unique())
+        # 4 symbols have full coverage across all 5 v2 factors, 4 have coverage=3, 4 have coverage=2.
+        full = symbols[:4]
+        covered_3 = symbols[4:8]  # missing from ivol_20d_flipped, momentum_2_12
+        covered_2 = symbols[8:]  # missing from three factors
+        panels = {}
+        for idx, name in enumerate(
+            ["ivol_20d_flipped", "piotroski_f_score", "momentum_2_12", "accruals", "profitability"]
+        ):
+            panel = _panel_from_scores(factor_scores, 0.1 * idx)
+            # ivol_20d_flipped [0] and momentum_2_12 [2]: NaN for covered_3.
+            if name in ("ivol_20d_flipped", "momentum_2_12"):
+                panel = self._sparsify(panel, covered_3).dropna(subset=["score"])
+            # piotroski [1], accruals [3], profitability [4]: NaN for covered_2.
+            if name in ("piotroski_f_score", "accruals", "profitability"):
+                panel = self._sparsify(panel, covered_2).dropna(subset=["score"])
+            panels[name] = panel
+        sharpes = dict.fromkeys(panels, 1.0)
+        ensemble, _ = compute_ensemble_weights(panels, sharpes, min_factor_coverage=3)
+        kept = set(ensemble["symbol"].unique())
+        assert set(full).issubset(kept)
+        assert set(covered_3).issubset(kept)
+        assert set(covered_2).isdisjoint(kept)
+
+
+class TestMaxReturnDecileCorrWithAdmitted:
+    """V2-PREREG-2026-04-24 G5 metric: max |Pearson corr| of candidate top-decile
+    5d forward returns vs each admitted factor. Solo-screen → 0.0 (PASS under
+    ≤ 0.90 threshold)."""
+
+    def test_solo_screen_returns_zero(self) -> None:
+        """No admitted factors → 0.0 (PASS convention)."""
+        factor_scores, forward_returns = _make_factor_data_v2(n_dates=40, n_stocks=60, seed=2)
+        corr, diag = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=factor_scores,
+            admitted_factor_scores={},
+            forward_returns=forward_returns,
+        )
+        assert corr == 0.0
+        assert any("Solo screen" in m.message for m in diag.messages)
+
+    def test_identical_factor_returns_near_one(self) -> None:
+        """Candidate vs a clone of itself → |corr| ≈ 1.0."""
+        factor_scores, forward_returns = _make_strong_signal_v2(n_dates=80, n_stocks=100, seed=8)
+        corr, _ = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=factor_scores,
+            admitted_factor_scores={"clone": factor_scores.copy()},
+            forward_returns=forward_returns,
+        )
+        assert corr > 0.99
+
+    def test_independent_factor_returns_low_corr(self) -> None:
+        """Candidate vs independently-generated factor → small |corr|."""
+        candidate_scores, forward_returns = _make_strong_signal_v2(n_dates=80, n_stocks=100, seed=13)
+        rng = np.random.default_rng(999)
+        independent = candidate_scores.copy()
+        independent["score"] = rng.standard_normal(len(independent))
+        corr, _ = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=candidate_scores,
+            admitted_factor_scores={"indep": independent},
+            forward_returns=forward_returns,
+        )
+        # Not strictly zero (finite samples), but well below the 0.90 gate.
+        assert corr < 0.60
+
+    def test_takes_max_across_multiple_admitted(self) -> None:
+        """Returns max |corr| across all admitted entries."""
+        candidate_scores, forward_returns = _make_strong_signal_v2(n_dates=80, n_stocks=100, seed=21)
+        rng = np.random.default_rng(111)
+        independent = candidate_scores.copy()
+        independent["score"] = rng.standard_normal(len(independent))
+        corr, _ = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=candidate_scores,
+            admitted_factor_scores={"indep": independent, "clone": candidate_scores.copy()},
+            forward_returns=forward_returns,
+        )
+        # Clone dominates — max corr should still be ≈ 1.
+        assert corr > 0.99
+
+    def test_non_negative_output(self) -> None:
+        """Output is |corr| so always in [0, 1]."""
+        candidate_scores, forward_returns = _make_factor_data_v2(n_dates=40, n_stocks=50, seed=33)
+        rng = np.random.default_rng(222)
+        admit = candidate_scores.copy()
+        admit["score"] = rng.standard_normal(len(admit))
+        corr, _ = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=candidate_scores,
+            admitted_factor_scores={"admit": admit},
+            forward_returns=forward_returns,
+        )
+        assert 0.0 <= corr <= 1.0
+
+    def test_insufficient_overlap_skips_admit(self) -> None:
+        """Admitted factor with <5 overlapping dates is skipped."""
+        candidate_scores, forward_returns = _make_factor_data_v2(n_dates=3, n_stocks=50, seed=41)
+        admit = candidate_scores.copy()
+        corr, diag = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=candidate_scores,
+            admitted_factor_scores={"admit": admit},
+            forward_returns=forward_returns,
+        )
+        # Overlap of 3 dates is below the 5-date floor; admit is skipped → max_corr stays 0.0.
+        assert corr == 0.0
+        assert any("< 5 dates" in m.message for m in diag.messages)
+
+    def test_zero_variance_series_is_skipped(self) -> None:
+        """Zero-variance candidate series emits a warning and yields 0.0."""
+        candidate_scores, forward_returns = _make_factor_data_v2(n_dates=40, n_stocks=50, seed=55)
+        # Flatten all scores so every date's top-decile mean is the same constant.
+        flat = candidate_scores.copy()
+        flat["score"] = 1.0
+        forward_flat = forward_returns.copy()
+        forward_flat["fwd_ret_5d"] = 0.0
+        admit = candidate_scores.copy()
+        admit["score"] = 1.0
+        corr, diag = _compute_max_return_decile_corr_with_admitted(
+            candidate_scores=flat,
+            admitted_factor_scores={"admit": admit},
+            forward_returns=forward_flat,
+        )
+        assert corr == 0.0
+        # Either skipped because of zero variance or low-overlap; at minimum the max stays 0.0.
+        skipped = any(
+            "zero-variance" in m.message or "no top-decile returns" in m.message for m in diag.messages
+        )
+        assert skipped
+
+    def test_screen_factor_exposes_g5_v2_metric(self) -> None:
+        """screen_factor returns max_return_decile_corr_with_admitted in metrics dict."""
+        candidate_scores, forward_returns = _make_strong_signal_v2(n_dates=80, n_stocks=100, seed=61)
+        # Solo screen: no existing_factor_scores → metric should be 0.0 (PASS).
+        _, metrics_solo, _ = screen_factor(
+            factor_name="candidate",
+            factor_scores=candidate_scores,
+            forward_returns=forward_returns,
+            existing_factors=None,
+        )
+        assert "max_return_decile_corr_with_admitted" in metrics_solo
+        assert metrics_solo["max_return_decile_corr_with_admitted"] == 0.0
+
+    def test_screen_factor_computes_corr_against_admitted(self) -> None:
+        """With admitted factor scores, metric reflects the actual correlation."""
+        candidate_scores, forward_returns = _make_strong_signal_v2(n_dates=80, n_stocks=100, seed=67)
+        _, metrics, _ = screen_factor(
+            factor_name="candidate",
+            factor_scores=candidate_scores,
+            forward_returns=forward_returns,
+            existing_factors=["clone"],
+            existing_factor_scores={"clone": candidate_scores.copy()},
+        )
+        assert "max_return_decile_corr_with_admitted" in metrics
+        # Clone of candidate → max_corr should be ≈ 1 and fail the ≤ 0.90 gate.
+        assert metrics["max_return_decile_corr_with_admitted"] > 0.99
 
 
 def _gaussian_returns(

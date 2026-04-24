@@ -478,6 +478,7 @@ def compute_cap_tilted_weights(
 def compute_ensemble_weights(
     factor_score_panels: dict[str, pd.DataFrame],
     factor_sharpes: dict[str, float],
+    min_factor_coverage: int = 1,
 ) -> tuple[pd.DataFrame, Diagnostics]:
     """Aggregate per-factor score panels into a Sharpe-weighted ensemble score.
 
@@ -488,6 +489,15 @@ def compute_ensemble_weights(
     over the included factors. Per (date, symbol), the weights are further
     re-normalized across factors that actually observed that pair, so
     missing coverage does not penalize a stock.
+
+    The ``min_factor_coverage`` parameter imposes a K-of-N coverage gate:
+    pairs with fewer than ``min_factor_coverage`` observed factor
+    contributions are dropped *before* re-normalization, preventing a
+    single factor from dominating the ensemble score for a thinly
+    covered stock. This implements the V2-PREREG-2026-04-24 construction
+    grammar (K=3-of-N=5 for the active v2 universe). Default 1 preserves
+    legacy behaviour for callers that do not opt in.
+
     **AP-6 note:** this helper does not alter admission gates, factor sign
     conventions, or quintile construction. It is a pure side-by-side
     aggregation sibling to ``compute_long_short_weights``.
@@ -504,6 +514,12 @@ def compute_ensemble_weights(
         weighting signal. Must cover every key in ``factor_score_panels``.
         Factors with Sharpe ≤ 0 or non-finite are silently excluded (with
         a diagnostic info).
+    min_factor_coverage : int
+        Minimum number of distinct factor panels that must contribute a
+        non-NaN observation for a given (date, symbol) pair before the
+        pair is emitted. Pairs below the threshold are dropped. Default 1
+        preserves legacy behaviour. Pass ``3`` for the V2-PREREG-2026-04-24
+        K=3-of-N=5 active universe.
 
     Returns
     -------
@@ -612,8 +628,29 @@ def compute_ensemble_weights(
     grouped = stacked.groupby(["date", "symbol"], sort=False)
     numerator = grouped["weighted_score"].sum()
     denominator = grouped["weight"].sum()
+    coverage = grouped.size()
 
-    ensemble_score = (numerator / denominator).rename("score").reset_index()
+    ensemble_score = (numerator / denominator).rename("score")
+
+    # V2-PREREG-2026-04-24 K-of-N coverage gate: drop (date, symbol) pairs
+    # whose factor coverage falls below ``min_factor_coverage`` BEFORE the
+    # denominator re-normalization is exposed to downstream consumers. With
+    # K=1 (default) every observed pair flows through; with K>=2 thinly
+    # covered stocks are silently excluded from the ensemble panel.
+    if min_factor_coverage > 1:
+        n_included = len(included)
+        insufficient = coverage < min_factor_coverage
+        n_insufficient = int(insufficient.sum())
+        if n_insufficient:
+            ensemble_score = ensemble_score[~insufficient]
+            diag.info(
+                src,
+                f"K-of-N coverage gate (K={min_factor_coverage}, "
+                f"N={n_included}) dropped {n_insufficient} "
+                f"(date, symbol) pair(s) below the coverage floor.",
+            )
+
+    ensemble_score = ensemble_score.reset_index()
     ensemble_score = ensemble_score.dropna(subset=["score"])
 
     if ensemble_score.empty:
@@ -913,6 +950,103 @@ def _compute_ensemble_ic_delta(
     return delta, diag
 
 
+def _compute_max_return_decile_corr_with_admitted(
+    candidate_scores: pd.DataFrame,
+    admitted_factor_scores: dict[str, pd.DataFrame],
+    forward_returns: pd.DataFrame,
+    decile_frac: float = 0.10,
+) -> tuple[float, Diagnostics]:
+    """Max |Pearson corr| of candidate top-decile 5d returns vs admitted.
+
+    Implements the V2-PREREG-2026-04-24 G5 metric
+    ``max_return_decile_corr_with_admitted`` (threshold ≤ 0.90). Solo-screen
+    — no admitted factors — returns 0.0 which passes the ≤ 0.90 direction,
+    matching the pre-registration convention.
+
+    For each factor (candidate and each admitted), per date, select stocks
+    in the top ``decile_frac`` of factor scores and compute the equal-
+    weighted mean of 5d forward returns. Then compute the absolute Pearson
+    correlation between the candidate's series of per-date means and each
+    admitted factor's series; return the maximum. Admitted factors whose
+    overlap with the candidate is fewer than 5 dates, or whose series has
+    zero variance, are skipped with an info diagnostic.
+
+    Parameters
+    ----------
+    candidate_scores : pd.DataFrame
+        Candidate factor score panel. Columns ``date, symbol, score``.
+    admitted_factor_scores : dict[str, pd.DataFrame]
+        Score panels for factors already admitted to the ensemble. Empty
+        dict returns 0.0 (solo-screen PASS).
+    forward_returns : pd.DataFrame
+        Forward-return panel. Columns ``date, symbol, fwd_ret_5d``.
+    decile_frac : float
+        Fraction of stocks per date considered "top decile". Default 0.10.
+
+    Returns
+    -------
+    tuple[float, Diagnostics]
+        (max absolute Pearson correlation, diagnostics). Non-negative;
+        0.0 when no admitted factors or insufficient overlap.
+    """
+    diag = Diagnostics()
+    src = f"{_MOD}._compute_max_return_decile_corr_with_admitted"
+
+    if not admitted_factor_scores:
+        diag.info(src, "Solo screen (no admitted factors) — max_corr = 0.0 (PASS).")
+        return 0.0, diag
+
+    def _top_decile_return_series(scores: pd.DataFrame) -> pd.Series:
+        merged = pd.merge(scores, forward_returns, on=["date", "symbol"], how="inner")
+        merged = merged.dropna(subset=["score", "fwd_ret_5d"])
+        if merged.empty:
+            return pd.Series(dtype=float)
+        per_date: dict = {}
+        for dt, grp in merged.groupby("date", sort=True):
+            if len(grp) < 10:
+                continue
+            threshold = float(grp["score"].quantile(1.0 - decile_frac))
+            top = grp[grp["score"] >= threshold]
+            if top.empty:
+                continue
+            per_date[dt] = float(top["fwd_ret_5d"].mean())
+        return pd.Series(per_date, name="top_decile_ret").sort_index()
+
+    cand_series = _top_decile_return_series(candidate_scores)
+    if cand_series.empty:
+        diag.warning(src, "Candidate produced no top-decile returns; max_corr = 0.0.")
+        return 0.0, diag
+
+    max_abs_corr = 0.0
+    for admit_name, admit_scores in admitted_factor_scores.items():
+        admit_series = _top_decile_return_series(admit_scores)
+        common = cand_series.index.intersection(admit_series.index)
+        if len(common) < 5:
+            diag.info(
+                src,
+                f"Admitted '{admit_name}': overlap {len(common)} < 5 dates, skipped.",
+            )
+            continue
+        a = cand_series.loc[common]
+        b = admit_series.loc[common]
+        if float(a.std(ddof=1)) == 0.0 or float(b.std(ddof=1)) == 0.0:
+            diag.info(src, f"Admitted '{admit_name}': zero-variance series, skipped.")
+            continue
+        corr = float(a.corr(b))
+        if np.isnan(corr):
+            continue
+        abs_corr = abs(corr)
+        diag.info(
+            src,
+            f"Admitted '{admit_name}': corr={corr:.4f}, |corr|={abs_corr:.4f}.",
+        )
+        if abs_corr > max_abs_corr:
+            max_abs_corr = abs_corr
+
+    diag.info(src, f"Max |correlation| with admitted: {max_abs_corr:.4f}.")
+    return max_abs_corr, diag
+
+
 def screen_factor(
     factor_name: str,
     factor_scores: pd.DataFrame,
@@ -929,7 +1063,12 @@ def screen_factor(
       - G2: IC mean (from metrics.information_coefficient over all dates)
       - G3: IC IR (from metrics.ic_ir)
       - G4: Max drawdown (of long-short quintile portfolio)
-      - G5: Marginal contribution (IC after adding to existing ensemble vs before)
+      - G5 (v1): ``marginal_contribution`` — ensemble IC delta vs existing.
+      - G5 (v2, V2-PREREG-2026-04-24): ``max_return_decile_corr_with_admitted``
+        — max |Pearson corr| of candidate top-decile 5d returns vs every
+        admitted factor; solo-screen returns 0.0. Both metrics are always
+        computed and returned; the active ``gate_config`` selects which one
+        is gated.
 
     Parameters
     ----------
@@ -1020,6 +1159,24 @@ def screen_factor(
         diag.info(src, "No existing factors — G5 auto-pass.")
     metrics["marginal_contribution"] = marginal
 
+    # G5 (v2, V2-PREREG-2026-04-24): max_return_decile_corr_with_admitted.
+    # Always computed in parallel with the legacy marginal_contribution so
+    # callers can select the active v2 gate_config without re-plumbing.
+    if existing_factor_scores:
+        max_corr, corr_diag = _compute_max_return_decile_corr_with_admitted(
+            factor_scores,
+            existing_factor_scores,
+            forward_returns,
+        )
+        diag.merge(corr_diag)
+    else:
+        max_corr = 0.0
+        diag.info(
+            src,
+            "No admitted factors — max_return_decile_corr_with_admitted = 0.0 (PASS).",
+        )
+    metrics["max_return_decile_corr_with_admitted"] = max_corr
+
     # Include factor_name in metrics for GateVerdict extraction
     metrics["factor_name"] = float("nan")  # sentinel — extracted as string below
 
@@ -1027,7 +1184,7 @@ def screen_factor(
         src,
         f"Factor '{factor_name}' metrics: Sharpe={oos_sharpe:.4f}, "
         f"perm_p={perm_p:.4f}, IC={ic_mean:.4f}, ICIR={ic_ir_val:.4f}, "
-        f"MDD={mdd:.4f}, marginal={marginal:.4f}",
+        f"MDD={mdd:.4f}, marginal={marginal:.4f}, max_corr={max_corr:.4f}",
     )
 
     # ── Evaluate gates ───────────────────────────────────────────────────

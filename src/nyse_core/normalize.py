@@ -14,10 +14,26 @@ from nyse_core.contracts import Diagnostics
 _MOD = "normalize"
 
 
-def rank_percentile(series: pd.Series) -> tuple[pd.Series, Diagnostics]:
+def rank_percentile(
+    series: pd.Series,
+    rng: np.random.Generator | None = None,
+) -> tuple[pd.Series, Diagnostics]:
     """Cross-sectional rank-percentile mapping to [0, 1].
 
-    Ties are handled with the *average* method.  Special cases:
+    Ties are handled with the *average* method by default. When ``rng`` is
+    supplied, ties are broken deterministically using ``rng.random(n)`` as a
+    secondary sort key — every tied element receives a distinct rank, and
+    calling twice with the same seed produces identical output.
+
+    The RNG path is required by V2-PREREG-2026-04-24 for discrete-score
+    factors (piotroski_f_score 0-9, short_interest_pct at rounded bin
+    edges, etc.) where average-rank ties create artificial plateaus in the
+    rank-percentile distribution that distort downstream quintile
+    construction and ensemble aggregation. Callers compute the seed via
+    ``numpy.random.default_rng(seed=date.toordinal())`` so every rebalance
+    date gets a deterministic tie-break draw.
+
+    Special cases:
 
     - All NaN → return all NaN with a WARNING diagnostic.
     - Single non-NaN value → return 0.5 with an INFO diagnostic.
@@ -27,6 +43,12 @@ def rank_percentile(series: pd.Series) -> tuple[pd.Series, Diagnostics]:
     ----------
     series : pd.Series
         Raw feature values for a single cross-section.
+    rng : np.random.Generator | None
+        Optional RNG for deterministic random tie-breaking. When ``None``
+        (default), ties receive the average of their tied ranks — canonical
+        behaviour preserved for backward compatibility. When supplied,
+        every tied element receives a distinct rank via lexicographic
+        sort on ``(value, rng.random())``.
 
     Returns
     -------
@@ -47,16 +69,36 @@ def rank_percentile(series: pd.Series) -> tuple[pd.Series, Diagnostics]:
         result.loc[non_nan.index] = 0.5
         return result, diag
 
-    # Rank using average tie-breaking, then scale to [0, 1]
     n = len(non_nan)
-    ranks = non_nan.rank(method="average")
+
+    if rng is None:
+        # Canonical path: average-rank tie-breaking (backward-compatible).
+        ranks = non_nan.rank(method="average")
+        tie_mode = "average"
+    else:
+        # V2-PREREG-2026-04-24 construction grammar: deterministic random
+        # tie-breaking via lexicographic sort on (value, rng.random()).
+        # np.lexsort uses the LAST key as primary, so (secondary, values)
+        # sorts by values first with secondary as the tie-breaker.
+        secondary = rng.random(n)
+        order = np.lexsort((secondary, non_nan.to_numpy()))
+        ranks_arr = np.empty(n, dtype=float)
+        ranks_arr[order] = np.arange(1, n + 1, dtype=float)
+        ranks = pd.Series(ranks_arr, index=non_nan.index, dtype=float)
+        tie_mode = "random"
+
     # Map rank 1..n to (rank - 1) / (n - 1), giving exact 0.0 and 1.0
     scaled = (ranks - 1) / (n - 1)
 
     result = pd.Series(np.nan, index=series.index, dtype=float)
     result.loc[scaled.index] = scaled.values
 
-    diag.info(src, f"Ranked {n} values to [0, 1]", n_ranked=n)
+    diag.info(
+        src,
+        f"Ranked {n} values to [0, 1] (tiebreak={tie_mode})",
+        n_ranked=n,
+        tiebreak=tie_mode,
+    )
     return result, diag
 
 
@@ -112,6 +154,7 @@ def normalize_cross_section(
     *,
     winsor_lower: float = 0.01,
     winsor_upper: float = 0.99,
+    rng: np.random.Generator | None = None,
 ) -> tuple[pd.Series, Diagnostics]:
     """Canonical cross-sectional normalization: winsorize → rank_percentile.
 
@@ -134,6 +177,11 @@ def normalize_cross_section(
     winsor_lower, winsor_upper : float
         Quantile bounds passed to `winsorize`.  Defaults mirror the
         research pipeline (1st/99th percentile).
+    rng : np.random.Generator | None
+        Optional RNG forwarded to ``rank_percentile`` for deterministic
+        random tie-breaking. When ``None`` (default), ties receive the
+        average rank. See ``rank_percentile`` for the V2-PREREG-2026-04-24
+        construction-grammar rationale.
 
     Returns
     -------
@@ -146,7 +194,7 @@ def normalize_cross_section(
     winsorized, w_diag = winsorize(series, lower=winsor_lower, upper=winsor_upper)
     diag.merge(w_diag)
 
-    ranked, r_diag = rank_percentile(winsorized)
+    ranked, r_diag = rank_percentile(winsorized, rng=rng)
     diag.merge(r_diag)
 
     return ranked, diag
