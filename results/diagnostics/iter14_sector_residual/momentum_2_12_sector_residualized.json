@@ -1,0 +1,20 @@
+{
+  "factor": "momentum_2_12",
+  "metrics": {
+    "ic_ir": 0.080739193072325,
+    "ic_mean": 0.015525901343031057,
+    "marginal_contribution": 1.0,
+    "max_drawdown": -0.295588758389703,
+    "oos_sharpe": 0.18079530767081828,
+    "permutation_p": 0.001996007984031936
+  },
+  "residualization_diag": {
+    "dates_processed": 366,
+    "rows_in": 173981,
+    "rows_out": 173981,
+    "symbols_dropped_no_sector": 0
+  },
+  "stream": 4,
+  "variant": "sector_residualized",
+  "verdict_passed_all": false
+}

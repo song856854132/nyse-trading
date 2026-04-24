@@ -1,0 +1,393 @@
+{
+  "n_factors": 6,
+  "n_rows": 36,
+  "rows": [
+    {
+      "direction": ">=",
+      "factor": "accruals",
+      "gap": 0.2765187902944724,
+      "gate": "G0_oos_sharpe",
+      "metric_value": 0.5765187902944724,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "accruals",
+      "gap": 0.04800399201596807,
+      "gate": "G1_permutation_p",
+      "metric_value": 0.001996007984031936,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "accruals",
+      "gap": -0.012026705762382113,
+      "gate": "G2_ic_mean",
+      "metric_value": 0.007973294237617888,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "accruals",
+      "gap": -0.43773060048489953,
+      "gate": "G3_ic_ir",
+      "metric_value": 0.06226939951510049,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "accruals",
+      "gap": 0.027672253021430115,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.2723277469785699,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "accruals",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    },
+    {
+      "direction": ">=",
+      "factor": "high_52w",
+      "gap": -1.529081288836479,
+      "gate": "G0_oos_sharpe",
+      "metric_value": -1.229081288836479,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "high_52w",
+      "gap": -0.95,
+      "gate": "G1_permutation_p",
+      "metric_value": 1.0,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "high_52w",
+      "gap": -0.02545311946093479,
+      "gate": "G2_ic_mean",
+      "metric_value": -0.0054531194609347905,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "high_52w",
+      "gap": -0.5233634463603457,
+      "gate": "G3_ic_ir",
+      "metric_value": -0.023363446360345694,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "high_52w",
+      "gap": -0.3066531440875367,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.6066531440875367,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "high_52w",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    },
+    {
+      "direction": ">=",
+      "factor": "ivol_20d",
+      "gap": -2.2155741419793986,
+      "gate": "G0_oos_sharpe",
+      "metric_value": -1.9155741419793988,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "ivol_20d",
+      "gap": -0.95,
+      "gate": "G1_permutation_p",
+      "metric_value": 1.0,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "ivol_20d",
+      "gap": -0.027910927524391553,
+      "gate": "G2_ic_mean",
+      "metric_value": -0.007910927524391554,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "ivol_20d",
+      "gap": -0.5545082204270915,
+      "gate": "G3_ic_ir",
+      "metric_value": -0.05450822042709146,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "ivol_20d",
+      "gap": -0.27768791699251866,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.5776879169925186,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "ivol_20d",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    },
+    {
+      "direction": ">=",
+      "factor": "momentum_2_12",
+      "gap": 0.21641920136222687,
+      "gate": "G0_oos_sharpe",
+      "metric_value": 0.5164192013622269,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "momentum_2_12",
+      "gap": 0.04800399201596807,
+      "gate": "G1_permutation_p",
+      "metric_value": 0.001996007984031936,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "momentum_2_12",
+      "gap": -0.0011134767069659254,
+      "gate": "G2_ic_mean",
+      "metric_value": 0.018886523293034075,
+      "near_miss_tag": "near_miss_within_50bps_ic",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "momentum_2_12",
+      "gap": -0.42231207857783903,
+      "gate": "G3_ic_ir",
+      "metric_value": 0.07768792142216094,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "momentum_2_12",
+      "gap": 0.017294923798902573,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.2827050762010974,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "momentum_2_12",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    },
+    {
+      "direction": ">=",
+      "factor": "piotroski",
+      "gap": -0.28188686531400164,
+      "gate": "G0_oos_sharpe",
+      "metric_value": 0.018113134685998362,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "piotroski",
+      "gap": 0.04800399201596807,
+      "gate": "G1_permutation_p",
+      "metric_value": 0.001996007984031936,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "piotroski",
+      "gap": -0.011031346086367117,
+      "gate": "G2_ic_mean",
+      "metric_value": 0.008968653913632883,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "piotroski",
+      "gap": -0.41102300302360817,
+      "gate": "G3_ic_ir",
+      "metric_value": 0.08897699697639182,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "piotroski",
+      "gap": 0.08383806901009278,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.21616193098990721,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "piotroski",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    },
+    {
+      "direction": ">=",
+      "factor": "profitability",
+      "gap": 0.8477384452572871,
+      "gate": "G0_oos_sharpe",
+      "metric_value": 1.1477384452572872,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.3
+    },
+    {
+      "direction": "<",
+      "factor": "profitability",
+      "gap": 0.04800399201596807,
+      "gate": "G1_permutation_p",
+      "metric_value": 0.001996007984031936,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.05
+    },
+    {
+      "direction": ">=",
+      "factor": "profitability",
+      "gap": -0.004208185478198897,
+      "gate": "G2_ic_mean",
+      "metric_value": 0.015791814521801104,
+      "near_miss_tag": "near_miss_within_50bps_ic",
+      "passes": false,
+      "threshold": 0.02
+    },
+    {
+      "direction": ">=",
+      "factor": "profitability",
+      "gap": -0.38702687708743205,
+      "gate": "G3_ic_ir",
+      "metric_value": 0.11297312291256795,
+      "near_miss_tag": "fail",
+      "passes": false,
+      "threshold": 0.5
+    },
+    {
+      "direction": ">=",
+      "factor": "profitability",
+      "gap": 0.11005791912987023,
+      "gate": "G4_max_drawdown",
+      "metric_value": -0.18994208087012976,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": -0.3
+    },
+    {
+      "direction": ">",
+      "factor": "profitability",
+      "gap": 1.0,
+      "gate": "G5_marginal_contribution",
+      "metric_value": 1.0,
+      "near_miss_tag": "pass",
+      "passes": true,
+      "threshold": 0.0
+    }
+  ],
+  "stream": 1,
+  "thresholds": {
+    "G0_oos_sharpe": {
+      "direction": ">=",
+      "threshold": 0.3
+    },
+    "G1_permutation_p": {
+      "direction": "<",
+      "threshold": 0.05
+    },
+    "G2_ic_mean": {
+      "direction": ">=",
+      "threshold": 0.02
+    },
+    "G3_ic_ir": {
+      "direction": ">=",
+      "threshold": 0.5
+    },
+    "G4_max_drawdown": {
+      "direction": ">=",
+      "threshold": -0.3
+    },
+    "G5_marginal_contribution": {
+      "direction": ">",
+      "threshold": 0.0
+    }
+  }
+}

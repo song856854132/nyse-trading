@@ -1,0 +1,17 @@
+{
+  "factors": [
+    "52w_high_proximity",
+    "accruals",
+    "ivol_20d",
+    "momentum_2_12",
+    "piotroski_f_score",
+    "profitability"
+  ],
+  "return_corr_summary": {
+    "max_off_diagonal": 0.9325877005332373
+  },
+  "score_corr_summary": {
+    "max_off_diagonal": 0.5482441155799976
+  },
+  "stream": 3
+}

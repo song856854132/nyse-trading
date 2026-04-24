@@ -1,0 +1,16 @@
+{
+  "jaccard_summary": {
+    "max_off_diagonal": 0.9982180496793867,
+    "min_off_diagonal": 0.28054035137146044
+  },
+  "n_coverage_rows": 2407,
+  "per_factor_mean_coverage_pct": {
+    "52w_high_proximity": 0.9932273882978723,
+    "accruals": 0.35179377697841724,
+    "ivol_20d": 0.9995281038647343,
+    "momentum_2_12": 0.9915546748633879,
+    "piotroski_f_score": 0.9717603884892086,
+    "profitability": 0.575650211031175
+  },
+  "stream": 2
+}
