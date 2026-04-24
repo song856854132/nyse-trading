@@ -1,0 +1,53 @@
+# Proposed v2 gate family thresholds — pre-registered by
+# docs/audit/iter15_v2_gate_family_preregistration.md (V2-PREREG-2026-04-24).
+#
+# NOT YET WIRED into any code path. The in-force gate family in
+# config/gates.yaml (sha256 521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4)
+# remains operationally in effect until iter-16 or later routes the gate loader
+# to this file in a separate governance-log-logged commit.
+#
+# Authorization: GL-0014 (gate family) + GL-0015 (Phase 3 exit target) in
+# docs/GOVERNANCE_LOG.md. Any deviation from a threshold below requires an
+# explicit supersession row per the append-only protocol, not a silent re-tune.
+#
+# Schema-compatible with src/nyse_core/config_schema.py:GatesConfig (strict
+# G0-G5 keys, each with metric/threshold/direction/description). Metric strings
+# themselves are unconstrained; new v2 metrics (e.g. max_return_decile_corr_with_admitted)
+# slot into existing schema keys. Gate semantics are documented here and in the
+# pre-registration memo.
+
+G0:
+  metric: "oos_sharpe"
+  threshold: 0.30
+  direction: ">="
+  description: "Long-short quintile OOS Sharpe >= 0.30 (retained from in-force; iter-14 Stream 1 near-passing cluster clears with >=0.22 buffer)"
+
+G1:
+  metric: "permutation_p"
+  threshold: 0.05
+  direction: "<"
+  description: "Block-bootstrap permutation p-value < 0.05 (retained; literature standard per Harvey-Liu-Zhu 2016, Romano-Wolf 2005)"
+
+G2:
+  metric: "ic_mean"
+  threshold: 0.005
+  direction: ">="
+  description: "Mean cross-sectional Spearman IC >= 0.005 (lowered from 0.02; evidence-derived as floor(near-passing IC means 0.0080/0.0189/0.0158) - epsilon 0.003, per iter-14 Stream 1)"
+
+G3:
+  metric: "ic_ir"
+  threshold: 0.05
+  direction: ">="
+  description: "IC Information Ratio (IC mean / IC std) >= 0.05 (lowered from 0.50; evidence-derived as floor(near-passing IC IRs 0.062/0.078/0.113) - epsilon 0.012, per iter-14 Stream 1)"
+
+G4:
+  metric: "max_drawdown"
+  threshold: -0.30
+  direction: ">="
+  description: "Long-short max drawdown >= -0.30 (retained from in-force; iter-14 Stream 1 near-passing cluster -0.19/-0.27/-0.28 all clear)"
+
+G5:
+  metric: "max_return_decile_corr_with_admitted"
+  threshold: 0.90
+  direction: "<="
+  description: "Pearson correlation of candidate top-decile 5d forward returns vs every already-admitted top-decile 5d forward returns, max <= 0.90 (replaces in-force marginal_contribution; solo-screen defined to PASS; derived from iter-14 Stream 3 return-decile matrix max 0.933)"
