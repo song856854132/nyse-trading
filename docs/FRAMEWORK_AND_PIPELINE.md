@@ -1244,6 +1244,89 @@ The two clipped-G5 factors remain in the V2-PREREG active universe (verdict-inva
 4. **One-shot 2024-2025 holdout test** — untouched per iron rule 1; consumed at most once.
 5. **Paper-stage entry** — per `config/deployment_ladder.yaml` `stages.paper.entry_gate`.
 
+## 17.3 Wave 6 Statistical Validation Pre-Registration (iter-21, GL-0017)
+
+**Status:** PRE-REGISTERED 2026-04-26 (iter-21 wrap of 20-iter research loop). All four bars FROZEN iter-21..iter-25 per Iron Rule 9. No Wave 6 test has yet run; no holdout authorization is released by this row. **Anchor:** Wave 5 tip hash `065d03e615d244527539a7a6f12865f4ca0bdfdc6d179cad727c55b8f10268a8` (iter-20 #150 wrap, GL-0016 Phase 3 EXIT AUTHORIZED, OOS Sharpe +0.5549 ≥ 0.50 GL-0015 frozen target). iter-21 research-log event chains off this hash.
+
+**Why validation, not more research.** Codex adversarial review on 2026-04-25 (session `019dba41-f163-70e1-875b-909771c26083`) flagged three structural concerns about the +0.5549 result: (1) **diversification illusion** — ρ off-diagonal simple-mean = 0.834 across the 10 factor pairs in the active v2 universe, suggesting the ensemble is closer to a single bet than to five orthogonal bets; (2) **coverage-rule survivorship** — 2 of 5 factors (`piotroski_f_score`, `profitability`) failed individual G5 under v2 thresholds and were retained only via the K=3-of-N=5 coverage gate (mathematically valid under GL-0014, but means the "active universe" is structurally different from "5 factors that all individually passed"); (3) **soft HARKing risk** — v2 thresholds (G2=0.005, G3=0.05) were derived from iter-9 diagnostic floors-minus-epsilon (mechanical), but the choice of a 5-factor active universe at iter-15 came AFTER seeing iter-9 per-factor metrics. AP-6 invariance is preserved at the threshold layer (`config/gates_v2.yaml` sha256 `bd0fc5de...d92979d2` frozen iter-15..iter-20) but cannot be re-validated in-sample. Path C spends cheap, reproducible statistical tests on the 2016-2023 research panel to determine whether +0.5549 is robust enough to justify burning the one-shot 2024-2025 holdout. Path D (Codex's principled fallback) declares the result **exploratory** if any validation bar fails — protecting the holdout for a future strategy with stronger in-sample evidence.
+
+**Pre-registered validation bars (frozen iter-21..iter-25; GL-0017):**
+
+| Bar | Metric | Threshold | Direction | Primitive | Orchestrator (sha256) |
+|---|---|---|---|---|---|
+| **V1** | Romano-Wolf adjusted p across 5 active v2 factors (ensemble Sharpe statistic, n_reps=500) | < 0.05 | strict less-than | `src/nyse_core/statistics.py:161` `romano_wolf_stepdown` | `scripts/run_v1_romano_wolf.py` (`e8e7b512dff9846ccf8081aa6f3402921c934f5a40483978f103b0fecda598ce`) |
+| **V2** | 95% block bootstrap CI lower bound on ensemble OOS Sharpe (n_reps=10000, block_size=63 trading days, alpha=0.05) | ≥ 0.30 | greater-or-equal | `src/nyse_core/statistics.py:106` `block_bootstrap_ci` | `scripts/run_v2_bootstrap_ci.py` (`18d15317efd371ee650f43cb1eaaa1f3591843557c7598d79e68381006f20f04`) |
+| **V3** | Max relative Sharpe deviation across 4 perturbations of in-ensemble construction grammar | ≤ 20% | strict less-or-equal | wraps `scripts/simulate_v2_ensemble_phase3.py` | `scripts/run_robustness_suite.py` (`3c63b255b87bdf95ea72274e15b304dcc552be1322e03ae07bde288ea40534dd`) |
+| **V4** | LOO ensemble robustness — sub-bar AND: V4a `min(LOO Sharpe) ≥ 0.30` AND V4b `max relative drop ≤ 35%` | both met | strict per sub-bar | wraps `scripts/simulate_v2_ensemble_phase3.py` | same as V3 |
+
+**V2 bar derivation (3-constraint triangulation, committed in GL-0017):** 0.30 is not a guess. It satisfies (a) the +0.5549 point estimate's 0.25-absolute cushion above `docs/ABANDONMENT_CRITERIA.md` A9 weak-signal floor [0, 0.3] — anything below 0.30 means the lower tail dips into A9 territory; (b) ρ=0.834 effective-N shrinkage means the bootstrap distribution width narrows but its center does not move — a lower bound of 0.30 is consistent with "weak-but-nonzero signal" rather than "coin flip"; (c) 0.30 is precisely 60% of GL-0015's 0.50 target — below this, the gap between point estimate and uncertainty band is large enough that the holdout becomes statistical theater rather than a decisive verdict.
+
+**V3 4-perturbation grid (deviates from plan's nominal 10 per Codex P2 contamination warning):**
+
+V3 uses **exactly four runs**, the full 2×2 Cartesian product of two in-ensemble knobs:
+
+| Run | `K_coverage` | `n_quantiles` |
+|---|---|---|
+| V3-r1 | 2 | 3 |
+| V3-r2 | 2 | 10 |
+| V3-r3 | 4 | 3 |
+| V3-r4 | 4 | 10 |
+
+Baseline `(K_coverage=3, n_quantiles=5)` is the comparison point and is **NOT** counted as a perturbation (the +0.5549 iter-19 anchor stands as the reference for "max relative deviation"). **No other perturbations are permitted** — neither one-knob-only sub-runs nor any post-hoc additional knob may be substituted for one of these four runs. The plan's nominal `{top_n, sell_buffer, ridge_alpha, bear_exposure}` perturbations are **EXCLUDED**: none of these knobs is part of the iter-19 ensemble construction (they belong to downstream allocator/risk overlays not yet exercised by Phase 3 evidence). Perturbing them would test the strategy stack rather than the v2 ensemble verdict — Codex P2 flagged this as contamination ("testing knobs not in the frozen strategy is contamination per Codex P2"). The 4 perturbations (full 2×2 Cartesian over the two in-ensemble knobs) are confined to the iter-19-frozen ensemble construction grammar.
+
+**V4 leave-one-factor-out grid (5 LOO drops, K=2-of-N=4 coverage):**
+
+| Drop | Remaining 4 active factors |
+|---|---|
+| `ivol_20d_flipped` | piotroski_f_score, momentum_2_12, accruals, profitability |
+| `piotroski_f_score` | ivol_20d_flipped, momentum_2_12, accruals, profitability |
+| `momentum_2_12` | ivol_20d_flipped, piotroski_f_score, accruals, profitability |
+| `accruals` | ivol_20d_flipped, piotroski_f_score, momentum_2_12, profitability |
+| `profitability` | ivol_20d_flipped, piotroski_f_score, momentum_2_12, accruals |
+
+Each LOO run uses K=2-of-N=4 (structurally analogous to baseline K=3-of-N=5; both require ≥40% factor coverage), `equal_sharpe_simple_mean` aggregation, `numpy.random.default_rng(seed=date.toordinal())` deterministic tie-break, 2016-2023 research window. **Sub-bar AND prevents structural masquerade**: V1/V2/V3 cannot detect "1 dominant factor (`ivol_20d_flipped` solo G0=1.92) + 4 correlated accessories" passing while structurally being a single-factor bet wearing five-factor camouflage. V4 directly drops one factor at a time and re-runs the ensemble. A robust ensemble degrades gracefully (no LOO Sharpe below 0.30 absolute, max relative drop ≤ 35% of baseline 0.5549). At the frozen baseline 0.5549, V4b implies the tighter effective floor (~0.36); V4a supplies an absolute floor, while V4b caps single-factor dependence. Both must pass — a single LOO drop below 0.30 absolute OR a >35% relative drop trips V4 FAIL.
+
+**Iron Rule 9 — Pre-registered validation bars (Wave 6 only):** all 4 bars committed in GL-0017 are FROZEN iter-21..iter-25; no bar may be renegotiated after observing any test output. Mirrors GL-0015's no-renegotiation clause that worked cleanly in Wave 5 (Phase 3 target frozen iter-15, verdict applied iter-19, exit authorized iter-20). **Reinforcement (Codex 2026-04-25)**: the research log self-documents at `scripts/append_research_log.py:23` that "an attacker with write access can re-chain the whole file from scratch" — mitigation is an EXTERNAL hash anchor of THIS commit's research-log iter-21 hash, published BEFORE iter-22 starts. **Strengthened scope (Codex iter-21 P1-3)**: before iter-22 starts, the iter-21 research-log hash and commit SHA MUST be published in **at least two independent channels**: (1) a signed git tag pushed to origin, AND (2) one non-repo timestamped channel (operator-controlled email or public gist). One channel alone is insufficient. Commit-reveal inside the same repo is NOT acceptable.
+
+**P2-1 anti-gaming clause (Codex iter-21):** No additional bars, alternative multiple-testing procedures, weighted scorecards, or unanimity relaxations may be introduced in iter-22..iter-25. The 4-bar V1∧V2∧V3∧V4 (V4 = V4a∧V4b) AND-construction is the sole iter-25 admission rule for GL-0018 (HOLDOUT AUTHORIZED); any FAIL routes to GL-0019 (EXPLORATORY VERDICT, Path D). Bonferroni-FDR substitution, weighted scorecards, conditional-3-of-4 tiers, and "we'll add a 5th bar after seeing iter-22 results" are all forbidden under Iron Rule 9.
+
+**Iron Rule 10 — Holdout-runner pre-land (Wave 7 forward):** the dedicated holdout-safe runner `scripts/run_holdout_once.py` (NEW file; `scripts/simulate_v2_ensemble_phase3.py` refuses post-2023 dates at `scripts/simulate_v2_ensemble_phase3.py:38` and `:322` and CANNOT be reused as-is) MUST land in a SEPARATE commit BEFORE iter-26 with passing tests. Same-iteration introduction of new holdout-running code AND consumption of the one-shot holdout is forbidden — too high-risk. **Strengthened scope (Codex iter-21 P1-4):** "Passing tests" means, at minimum, dedicated runner tests that prove (a) hardcoded 2024-01-01..2025-12-31 window enforcement; (b) refusal when `results/holdout/.holdout_used` or `results/holdout/.holdout_in_progress` exists; (c) refusal on frozen-hash mismatch (`config/gates_v2.yaml`, `config/gates.yaml`, `scripts/simulate_v2_ensemble_phase3.py`); (d) successful write of `results/holdout/holdout_result.json` plus `results/holdout/holdout_result.json.sha256` on a fixture run; (e) `scripts/check_holdout_guard.py` still passes with the 4-path allowlist intact. A bare import or smoke test does NOT satisfy Iron Rule 10.
+
+**Branch logic at iter-25 (Wave 6 wrap):**
+
+| Outcome | Verdict combination | Governance row | Next action |
+|---|---|---|---|
+| **Branch A — HOLDOUT AUTHORIZED** | UNANIMOUS V1∧V2∧V3∧V4 PASS (V4 = V4a∧V4b) | GL-0018 (Codex consult MANDATORY) | iter-26 may consume one-shot 2024-2025 holdout via `scripts/run_holdout_once.py` (subject to Iron Rule 10 pre-land) |
+| **Branch B — EXPLORATORY VERDICT (Path D)** | ≥ 1 of {V1, V2, V3, V4a, V4b} FAILs | GL-0019 (Codex consult OPTIONAL) | Strategy archived as exploratory; holdout PROTECTED; `results/holdout/.holdout_used` lockfile NOT created; audit memo `docs/audit/wave6_exploratory_<YYYY-MM-DD>.md` |
+
+**Tamper-evidence anchors (committed in GL-0017):**
+
+| Artefact | sha256 | Status |
+|---|---|---|
+| `config/gates_v2.yaml` | `bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2` | bit-identical (frozen iter-15..iter-21+) |
+| `config/gates.yaml` | `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4` | bit-identical (retired from forward admissions; v1 backward-compat only) |
+| `scripts/check_holdout_guard.py` | `cce7bd00aeb4ffd91086376c748400f95eaf200fe51a49107fbc8c35647bd0ac` | P0-B narrow 4-path allowlist (hardcoded, not glob — any later edit is tamper-evident) |
+| `scripts/run_v1_romano_wolf.py` | `e8e7b512dff9846ccf8081aa6f3402921c934f5a40483978f103b0fecda598ce` | V1 orchestrator (P0-A, replaces deprecated `scripts/run_permutation_test.py` placeholder) |
+| `scripts/run_v2_bootstrap_ci.py` | `18d15317efd371ee650f43cb1eaaa1f3591843557c7598d79e68381006f20f04` | V2 orchestrator (P0-A) |
+| `scripts/run_robustness_suite.py` | `3c63b255b87bdf95ea72274e15b304dcc552be1322e03ae07bde288ea40534dd` | V3+V4 orchestrator (P0-A) |
+| `scripts/simulate_v2_ensemble_phase3.py` | `5b9e5c0e563f1912940559ff768bd01d64f736d522e5ee7155846be1618ffb76` | iter-19 reference orchestrator (read-only, wrapped by V3+V4 runner) |
+
+**Iter-by-iter execution map (Wave 6 + Wave 7):**
+
+| Iter | Type | Goal | PASS condition | Codex consult |
+|---|---|---|---|---|
+| 21 (#151) | Governance-only | Pre-register V1/V2/V3/V4 + Iron Rules 9/10 (this section, GL-0017) | row committed, PDF regenerated, research-log appended, external hash anchor published | **MANDATORY** (mirrors iter-15 v2 pre-registration consult) |
+| 22 (#152) | Mechanical | V1 Romano-Wolf orchestration via `run_v1_romano_wolf.py` | max(adjusted_p) < 0.05 | NO |
+| 23 (#153) | Mechanical | V2 block bootstrap CI orchestration via `run_v2_bootstrap_ci.py` | CI lower bound ≥ 0.30 | NO |
+| 24 (#154) | Mechanical | V3+V4 robustness orchestration via `run_robustness_suite.py` (4 perturbations + 5 LOO drops) | V3 max relative deviation ≤ 20% AND V4a min ≥ 0.30 AND V4b max relative drop ≤ 35% | NO |
+| 25 (#155) Branch A | Governance-only | HOLDOUT AUTHORIZED (GL-0018) | UNANIMOUS V1∧V2∧V3∧V4 PASS | **MANDATORY** (most consequential governance action in project) |
+| 25 (#155) Branch B | Governance-only | EXPLORATORY VERDICT (GL-0019, Path D) | ≥ 1 bar FAIL | OPTIONAL |
+| 26 (#156) | Irreversible execution | Wave 7 one-shot holdout consumption via `scripts/run_holdout_once.py` (NEW, pre-landed per Iron Rule 10) | Sharpe > 0 (primary, GOVERNANCE_LOG:101); 3-tier outcome (FAIL / PASS-WEAK / PASS-DECISIVE) reported but not gating | **MANDATORY** (AP-6-terminal, irreversible) |
+
+**NOT in scope for Wave 6:** new factors; gate threshold changes; model class changes (Ridge remains only `CombinationModel`); holdout consumption (Wave 7); paper-stage entry; research-period extension; ensemble aggregator changes; new factor admission decisions cited; falsification-trigger changes.
+
+**Iron rule compliance check (per iter):** Rule 1 (no post-2023 dates — all Wave 6 computations use 2016-01-01..2023-12-31); Rule 2 (`config/gates_v2.yaml` and `config/gates.yaml` sha256s bit-identical); Rule 3 (no DB mocks — runs against `research.duckdb`); Rule 4 (no secrets); Rule 6 (hash chain — iter-21 chains off Wave 5 tip `065d03e6...0268a8`); Rule 7 (`results/factors/*/gate_results.json` GL-0011 invariance preserved); Rule 8 (gates frozen pre-screen); Rule 9 (GL-0017 bars frozen iter-21..iter-25, no renegotiation); Rule 10 (`scripts/run_holdout_once.py` MUST pre-land before iter-26).
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
