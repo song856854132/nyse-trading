@@ -1,0 +1,34 @@
+{
+  "interpretation": {
+    "conclusion": "flip does NOT pass v1 gates \u2014 fails: G2 ic_mean=0.0055<0.02; G3 ic_ir=0.0234<0.50. Despite strong OOS Sharpe=1.2234372477971935, IC metrics are below v1 admission thresholds, so 52w_high_proximity remains EXCLUDED from the v2 active factor universe per GL-0014. Return comes from decile tails, not cross-sectional rank alignment.",
+    "flipped_ic_ir": 0.023363446360345694,
+    "flipped_ic_mean": 0.0054531194609347905,
+    "flipped_max_drawdown": -0.2298209218200371,
+    "flipped_oos_sharpe": 1.2234372477971935,
+    "flipped_passes_all_v1_gates": false,
+    "flipped_permutation_p": 0.001996007984031936
+  },
+  "iteration": 18,
+  "iteration_tag": "iter-18",
+  "n_panel_rows": 178891,
+  "n_rebalance_dates": 418,
+  "panel": "52w_high_proximity",
+  "sign_flip_result": {
+    "factor": "52w_high_proximity",
+    "metrics": {
+      "ic_ir": 0.023363446360345694,
+      "ic_mean": 0.0054531194609347905,
+      "marginal_contribution": 1.0,
+      "max_drawdown": -0.2298209218200371,
+      "max_return_decile_corr_with_admitted": 0.0,
+      "oos_sharpe": 1.2234372477971935,
+      "permutation_p": 0.001996007984031936
+    },
+    "variant": "sign_flipped",
+    "verdict_passed_all": false
+  },
+  "window": {
+    "end": "2023-12-31",
+    "start": "2016-01-01"
+  }
+}
