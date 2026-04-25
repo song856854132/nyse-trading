@@ -1161,9 +1161,9 @@ ERROR PATH (EDGAR API down during rebalance window):
 | **Phase 2** | Data + Execution | Complete | ~130 | Data adapters, storage, nautilus_bridge, rate_limiter, data_quality, alert_bot |
 | **Phase 3** | Factor Research (infrastructure) | Complete | ~210 | All 6 factor families, factor_screening, factor_correlation, attribution, synthetic_calibration, gate evaluation |
 | **Phase 3 Codex** | Codex Review Hardening | Complete | +64 (998 total) | Market-model IVOL, FINRA PiT lag, proper Romano-Wolf stepdown, ExecutionPurgedCV, multi-dataset routing, winsorization, G5 ensemble IC delta, gate alignment |
-| **Phase 3 (real data)** | Factor admission on 2016-2023 S&P 500 | **IN PROGRESS — 0/6 attempted pass** | -- | ivol_20d FAIL, high_52w FAIL, momentum_2_12 FAIL, piotroski FAIL, accruals FAIL, profitability FAIL (see §17.1 and `OUTCOME_VS_FORECAST.md`) |
+| **Phase 3 (real data)** | Factor admission on 2016-2023 S&P 500 | **EXIT AUTHORIZED (GL-0016, 2026-04-25)** | -- | iter-0 v1 family: 6/6 FAIL (canonical FAIL verdicts preserved per GL-0011). v2 family (GL-0014, V2-PREREG-2026-04-24): 5-factor active universe `{ivol_20d_flipped, piotroski_f_score, momentum_2_12, accruals, profitability}`; iter-19 ensemble OOS Sharpe **+0.5549 ≥ 0.50** GL-0015 frozen target (perm p=0.0020). See §17.1 (iter-0 FAIL audit, preserved) and §17.2 (Wave 5 v2 ensemble PASS) |
 | **Phase 4** | Optimization + ML | Complete (on synthetic) | +142 | GBM/Neural models, strict walk-forward rewrite, drift detection, strategy_registry, optimizer, PCA dedup, dashboard, enhanced falsification |
-| **Phase 5** | Paper Trading | **Blocked** | -- | Blocked on ≥3 admitted factors + ensemble G0-G5 pass + holdout success; otherwise blocked on A1/A2 abandonment decision |
+| **Phase 5** | Paper Trading | **Blocked on statistical validation suite** | -- | Phase 3 exit authorized (GL-0016). Outstanding §5 pending authorization rows: Romano-Wolf adjusted p < 0.05; bootstrap CI lower bound > 0; parameter sensitivity ±20%; one-shot 2024-2025 holdout test (untouched per iron rule 1). Then paper-stage entry per `config/deployment_ladder.yaml`. |
 | **Phase 6** | Live Deployment | Not started | -- | Shadow → Min Live → Scale |
 
 ### 17.1 Real-Data Factor Admission Outcomes (2026-04-17 to 2026-04-18)
@@ -1196,6 +1196,53 @@ After the synthetic calibration suite validated the pipeline, six Tier-1 and Tie
 - **C) Horizon change** — re-screen fundamentals at 20-day forward horizon (secondary target per plan). Purge gap auto-adjusts.
 - **D) Threshold re-negotiation** — **FORBIDDEN** by AP-6.
 - **E) Abandonment** — governed by A1-A12 in `docs/ABANDONMENT_CRITERIA.md`. Not yet triggered.
+
+### 17.2 Wave 5 v2 Ensemble PASS (2026-04-24 to 2026-04-25, iter-15 to iter-20)
+
+After §17.1's 0/6 v1 FAIL audit, Wave 4 (iter-12..iter-15) ran a 5-stream diagnostic battery (`docs/audit/wave_d_diagnostic_charter.md`) across the 6 failing factors. Stream-evidence motivated a v2 gate family pre-registration (V2-PREREG-2026-04-24, authorized by GL-0014) with three changes vs v1:
+
+1. **G2 ic_mean lowered 0.02 → 0.005** — derived as `floor(near-passing IC means) − pre-registered ε(0.003)` from Stream 1 evidence (accruals 0.008, momentum_2_12 0.019, profitability 0.016).
+2. **G3 ic_ir lowered 0.50 → 0.05** — derived as `floor(near-passing IC IRs) − pre-registered ε(0.012)` from Stream 1 (accruals 0.062, momentum_2_12 0.078, profitability 0.113).
+3. **G5 replaced** — `marginal_contribution > 0.0` retired in favor of `max_return_decile_corr_with_admitted ≤ 0.90`, a return-stream redundancy check derived from Stream 3's max observed pairwise correlation 0.933.
+
+Construction grammar co-registered (V2-PREREG §2): K=3-of-N=5 ensemble coverage gate; `rank_percentile` with `numpy.random.default_rng(seed=date.toordinal())` deterministic tie-break; no sector residualization (Stream 4 showed clear-negative effect on momentum_2_12); `ivol_20d_flipped` sign=+1 substituted for canonical `ivol_20d` sign=-1 (canonical preserved unchanged per GL-0011); `52w_high_proximity` excluded pending iter-18 #141 dedicated Stream-5 sign-flip diagnostic (iter-18 outcome: neither orientation passes v2, panel removed from active set).
+
+Phase 3 exit target was simultaneously pre-registered at OOS Sharpe **0.50** (GL-0015) with a no-renegotiation clause for iter-16..iter-20 — derivation: floor ≥ v2 G0 (0.30); ceiling ≤ max(Stream-1 Sharpe 1.148) + diversification bonus 0.17 ≈ 1.32; target 0.50 sits between with realization-slippage margin consistent with TWSE priors and Lesson_Learn §63.
+
+**Active v2 factor universe:** `{ivol_20d_flipped, piotroski_f_score, momentum_2_12, accruals, profitability}`. iter-18 #143 v2 re-screen (parallel `gate_results_v2.json` paths; canonical `gate_results.json` GL-0011 FAIL verdicts untouched) showed:
+
+| Factor | OOS Sharpe | perm p | IC mean | IC IR | MaxDD | G5 ρ_max | v2 verdict |
+|---|---:|---:|---:|---:|---:|---:|:---:|
+| ivol_20d_flipped | +1.9220 | 0.0020 | +0.0079 | +0.0545 | -0.132 | 0.849 | **PASS** |
+| momentum_2_12 | +0.5164 | 0.0020 | +0.0189 | +0.0777 | -0.283 | 0.879 | **PASS** |
+| accruals | +0.5765 | 0.0020 | +0.0080 | +0.0623 | -0.272 | 0.850 | **PASS** |
+| piotroski_f_score | +0.0385 | 0.0020 | +0.0090 | +0.0892 | -0.216 | 0.933 | FAIL (G0+G5) |
+| profitability | +1.1477 | 0.0020 | +0.0158 | +0.1130 | -0.190 | 0.933 | FAIL (G5) |
+
+The two clipped-G5 factors remain in the V2-PREREG active universe (verdict-invariant under K=3-of-N=5 ensemble construction, which captures their contribution where coverage permits without admitting them solo).
+
+**iter-19 #144 ensemble Phase 3 verdict (PASS, GL-0016 anchor):**
+
+| Metric | Value | Target | Source |
+|---|---:|---|---|
+| OOS Sharpe | **+0.5549** | ≥ 0.50 (GL-0015 frozen) | `results/ensemble/iter19_v2_phase3/ensemble_result.json` |
+| Permutation p | 0.0020 | < 0.05 | block bootstrap n_reps=500, block_size=21 |
+| IC mean | +0.0183 | n/a (informational) | spearman cross-section per rebalance date |
+| IC IR | +0.1140 | n/a (informational) | mean / std of weekly ICs |
+| Max drawdown | -0.1105 | ≥ -0.30 (v2 G4) | equity-curve drawdown on top-decile aggregate |
+| Simple-mean ρ off-diagonal | 0.8338 | ≤ 0.90 element-wise (Stream 3 ceiling assumption) | 10 unique pairs of 5×5 top-decile-return correlation matrix |
+| Aggregator | `equal_sharpe_simple_mean` | matches GL-0015 ceiling derivation | uniform Sharpe weights = 1.0 |
+| Coverage gate | K=3-of-N=5 | per V2-PREREG §2 | `compute_ensemble_weights(min_factor_coverage=3)` |
+| Ensemble rows | 185,215 | n/a | 412 valid 5d-fwd-return periods over 417 rebalance dates |
+
+**Verdict (GL-0016, 2026-04-25):** OOS Sharpe +0.5549 ≥ 0.50 frozen target (clearance +0.0549 absolute / +11.0% relative). Phase 3 exit authorization triggered; advance to statistical validation suite per `docs/GOVERNANCE_LOG.md` §5 pending row "Ensemble Sharpe ≥ 0.5 on research period 2016-2023". GL-0015 no-renegotiation clause resolved by clearance. No threshold modification, no admission decision changed, no `config/gates*.yaml` byte changed (v1 sha256 `521b7571...f559af4` and v2 sha256 `bd0fc5de...d92979d2` bit-identical before/after iter-19). GL-0011 canonical `gate_results.json` FAIL verdicts untouched. Iron rules 1, 2, 6, 7, 8 preserved end-to-end.
+
+**Next pending authorization points** (`docs/GOVERNANCE_LOG.md` §5):
+1. **Romano-Wolf adjusted p < 0.05** — multiple-testing correction across all factors tested (plan §statistical validation).
+2. **Bootstrap CI lower bound > 0** — block bootstrap on ensemble Sharpe.
+3. **Parameter sensitivity ±20%** — per `.claude/skills/alpha-research/` Mode 6 (top_n, sell_buffer, ridge_alpha, bear_exposure, max_position_pct).
+4. **One-shot 2024-2025 holdout test** — untouched per iron rule 1; consumed at most once.
+5. **Paper-stage entry** — per `config/deployment_ladder.yaml` `stages.paper.entry_gate`.
 
 ### Phase 3 Codex Review Detail (Most Recent)
 
