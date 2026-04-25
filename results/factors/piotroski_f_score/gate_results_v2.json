@@ -1,0 +1,87 @@
+{
+  "active_v2_factor_universe": [
+    "ivol_20d_flipped",
+    "piotroski_f_score",
+    "momentum_2_12",
+    "accruals",
+    "profitability"
+  ],
+  "factor_name": "piotroski_f_score",
+  "gate_metrics": {
+    "G0_value": 0.03853480955626958,
+    "G1_value": 0.001996007984031936,
+    "G2_value": 0.00899319098058753,
+    "G3_value": 0.08923960949444396,
+    "G4_value": -0.2161619309899081,
+    "G5_value": 0.9325877005332378
+  },
+  "gate_results": {
+    "G0": false,
+    "G1": true,
+    "G2": true,
+    "G3": true,
+    "G4": true,
+    "G5": false
+  },
+  "gate_thresholds": {
+    "G0": {
+      "direction": ">=",
+      "metric": "oos_sharpe",
+      "threshold": 0.3
+    },
+    "G1": {
+      "direction": "<",
+      "metric": "permutation_p",
+      "threshold": 0.05
+    },
+    "G2": {
+      "direction": ">=",
+      "metric": "ic_mean",
+      "threshold": 0.005
+    },
+    "G3": {
+      "direction": ">=",
+      "metric": "ic_ir",
+      "threshold": 0.05
+    },
+    "G4": {
+      "direction": ">=",
+      "metric": "max_drawdown",
+      "threshold": -0.3
+    },
+    "G5": {
+      "direction": "<=",
+      "metric": "max_return_decile_corr_with_admitted",
+      "threshold": 0.9
+    }
+  },
+  "gates_config_path": "config/gates_v2.yaml",
+  "gates_v2_sha256": "bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2",
+  "gates_version": "v2",
+  "iteration": 18,
+  "iteration_tag": "iter-18",
+  "leave_one_out_admitted_pool": [
+    "ivol_20d_flipped",
+    "momentum_2_12",
+    "accruals",
+    "profitability"
+  ],
+  "metrics": {
+    "ic_ir": 0.08923960949444396,
+    "ic_mean": 0.00899319098058753,
+    "marginal_contribution": -0.0011555282680635187,
+    "max_drawdown": -0.2161619309899081,
+    "max_return_decile_corr_with_admitted": 0.9325877005332378,
+    "oos_sharpe": 0.03853480955626958,
+    "permutation_p": 0.001996007984031936
+  },
+  "n_forward_return_rows": 198477,
+  "n_panel_rows": 193537,
+  "n_rebalance_dates": 418,
+  "passed_all": false,
+  "task_id": 143,
+  "window": {
+    "end": "2023-12-31",
+    "start": "2016-01-01"
+  }
+}
