@@ -1431,6 +1431,208 @@ holdout consumption or paper-stage entry.
 authorization (now reclassified exploratory) at GL-0016; v2 family pre-registration
 at GL-0014; Phase 3 target freeze at GL-0015.
 
+### 17.6 Wave 8 Multi-Workstream Pre-Registration (iter-27 #157, GL-0021 + GL-0022)
+
+**Status:** PRE-REGISTERED 2026-04-26 (iter-27 wrap of Wave 8 prep). All 5 active bars
+(V_D1..V_D4, V_A7) FROZEN iter-27..iter-35 per Iron Rule 9 (Wave 8 carryover); V5
+prospective bar FROZEN forward to any Wave 9+ ensemble. No Wave 8 test has yet run; no
+Wave 9 holdout authorization is released by this row. **Anchor:** Wave 6 tip hash
+`6eac383e509b786dc863b9996587b0c47c94d0ef68358b4ae1bd5031d7b1dcaf` (iter-25 #155 wrap,
+GL-0019 Branch B EXPLORATORY VERDICT). iter-27 research-log event chains off this hash
+via `scripts/append_research_log.py --expected-prev-hash` optimistic-concurrency guard.
+
+**Why three workstreams in one wave.** Codex 2026-04-26 second-opinion review (session
+`019dc462-24c4-7d60-b217-6d5eda8199ec`) responded to GL-0019's combined diagnosis
+("+0.5549 OOS Sharpe ≈ '1.92 × ivol_20d_flipped + noise' wearing five-factor
+camouflage") with three principled paths: **Option D — single-factor reframe** (validate
+`ivol_20d_flipped` STANDALONE under its own pre-registered bars; if it survives without
+ensemble camouflage, it is a real strategy); **Option A — orthogonal factor discovery**
+(search for genuinely uncorrelated alpha sources to enable a future ensemble that is not
+1-load-bearing-factor + passengers); **V5 prospective bar** (formally pre-register the
+missing positive-side LOO test that Wave 6 V4 should have caught, applicable to any
+Wave 9+ ensemble). Operator chose to combine all three concurrently per "all together"
+directive. Codex's Option B (drop `piotroski_f_score` + K=2-of-4) was REJECTED as "drop
+the cover, not drop the carrier" — Iron Rule 9 anti-gaming smell — and is forbidden in
+any Wave 8 iter.
+
+**W8-D bars (single-factor `ivol_20d_flipped` strategy; frozen iter-27..iter-35; GL-0021):**
+
+| Bar | Metric | Threshold | Direction | Source / Primitive |
+|---|---|---|---|---|
+| **V_D1** | Walk-forward OOS Sharpe (5d fwd ret, single-factor portfolio: top_n=20, sell_buffer=1.5, equal_weight, NO K-of-N coverage gate, NO ensemble) | ≥ 0.30 | greater-or-equal | `config/gates_v2.yaml` G0 absolute floor preserved verbatim; computed via `scripts/run_workstream_d_single_factor.py` (sha256 `e15983ed057f1768fabca78a88c5a323f3bc66825eb02b6934080a83119a8a33`) |
+| **V_D2** | Permutation p-value (stationary bootstrap, 500 reps, single-factor) | < 0.05 | strict less-than | mirrors V1 reduced to single-factor case; `src/nyse_core/statistics.py:43` `permutation_test` |
+| **V_D3** | Block bootstrap 95% CI lower bound (63-day blocks, 10000 reps) | ≥ 0.20 | greater-or-equal | `src/nyse_core/statistics.py:106` `block_bootstrap_ci` |
+| **V_D4** | Min Sharpe across SPY SMA200 bull/bear regime split | ≥ 0.20 | greater-or-equal | NEW; replaces V3 K-coverage perturbation grid which doesn't exist in single-factor |
+
+**V_D3 derivation memo.** V_D3 is a **deliberate strategy-class relaxation** of Wave 6's
+V2 threshold (0.30 → 0.20), not a softening of A9 enforcement. We name the relaxation
+explicitly to satisfy Iron Rule 9: Wave 6 V2 = 0.30 was calibrated to a 5-factor
+ensemble whose diversification was supposed to compress the lower CI tail; that
+diversification claim was falsified by Wave 6's own outcome (ρ=0.834 effective-N
+inflation, ci_width=2.15164). A single-factor strategy makes no diversification claim,
+so its lower CI tail is structurally wider, and the V2=0.30 calibration does not transfer.
+V_D3 = 0.20 = 40% of GL-0015 frozen Phase 3 target (0.50). **The lower CI tail at 0.20
+sits ON the `docs/ABANDONMENT_CRITERIA.md` A9 weak-signal floor**, not above it; W8-D is
+intentionally evaluated at the A9 boundary because a single-factor strategy that cannot
+clear a 0.20 lower bound is, by A9's own definition, indistinguishable from noise. If
+this anchor is wrong, the failure mode is that W8-D PASS produces a strategy whose CI
+straddles the noise boundary — which Iron Rule 12 forces back through a Wave 9 holdout
+re-authorization row anyway. V_D3 is frozen at 0.20 prospectively (Iron Rule 8); any
+post-evidence move is an AP-6 violation.
+
+**V_D4 derivation memo.** Wave 6 V3 perturbed K-coverage and n_quantiles — knobs that
+don't exist in a single-factor strategy. Regime stratification is the structurally
+analogous robustness test for single-factor: does the strategy survive the largest
+available distributional shift (bull-vs-bear macro regime)? SPY SMA200 split is the
+canonical regime gate already used in `config/strategy_params.yaml: regime`.
+**Threshold derivation:** 0.20 = V_D1 absolute Sharpe floor (0.30) × (1 − GL-0017 V4b
+max-negative-relative-drop tolerance 0.35) = 0.30 × 0.65 = 0.195, rounded to 0.20. This
+anchors V_D4 to the SAME Iron-Rule-9-frozen tolerance that bounded Wave 6's LOO
+robustness test, NOT to V_D3's floor (which is independent variance reasoning).
+Worst-regime case = a regime drop equal in magnitude to V4b's pre-registered Wave 6
+tolerance, applied to V_D1's floor; if either regime falls below this, the strategy is
+regime-fragile by Wave 6's own frozen yardstick.
+
+**W8-A bar (orthogonal factor discovery; frozen iter-27..iter-35; GL-0021):**
+
+| Bar | Metric | Threshold | Direction | Source |
+|---|---|---|---|---|
+| **V_A7** | Max pearson correlation of candidate's daily long-short return series against EACH of the 5 v2 active factors (`ivol_20d_flipped`, `piotroski_f_score`, `momentum_2_12`, `accruals`, `profitability`) | < 0.50 | strict less-than | Plan-of-record G2 (pre-iter-11 family); reinstated for orthogonality; complements `gates_v2.yaml` G5 (max return-decile corr ≤ 0.90) |
+
+W8-A candidates ALSO pass v2 G0-G5 thresholds (`config/gates_v2.yaml` sha256
+`bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2`). V_A7 is an
+ADDITIONAL gate stacked on top, not a replacement.
+
+**V_A7 derivation memo.** The 5-factor v2 active universe is ρ=0.834 mean off-diagonal
+correlation. Adding 1 candidate creates 5 new pairs alongside the existing 10
+(C(5,2)=10; C(6,2)=15). Worst-case post-admission mean ρ when candidate sits AT the
+V_A7 ceiling = (10 × 0.834 + 5 × 0.50) / 15 = 0.7227, a guaranteed 11.1-percentage-point
+improvement floor over the current 0.834. V_A7 < 0.50 enforces this guarantee per
+admission; subsequent candidates further compound. The 0.50 threshold matches the
+original plan-of-record G2 (correlation cap, pre-iter-11 family) and is strictly more
+conservative than `gates_v2.yaml` G5's return-decile correlation cap (≤ 0.90, which
+captures only extreme decile co-movement, not the average-correlation problem). The
+asymmetry — newcomers must clear < 0.50 while incumbents sit at 0.834 — is intentional:
+incumbents were not subjected to V_A7 because V_A7 did not exist when v2 universe was
+admitted (Iron Rule 8: gates frozen pre-screen). V_A7 is forward-only.
+
+**W8-A candidate slate placeholder (full freeze in GL-0023, iter-29):**
+
+| # | Candidate | Tier | Friction Hypothesis | Data Source |
+|---|---|---|---|---|
+| 1 | `52w_high_proximity` | T1 | Disposition effect + reference-point anchoring | OHLCV |
+| 2 | `short_ratio` | T2 | Informed bearish traders signal negative returns; costly shorting preserves edge | FINRA bi-monthly |
+| 3 | `ewmac` | T3 | Carver cross-sectional trend rule | OHLCV |
+| 4 | `days_to_cover` | T2 | Short-side capital constraint complementary to short_ratio | FINRA bi-monthly |
+| 5 | `options_flow_proxy` | T3 | Put/call skew or volume imbalance — alt-data orthogonality | CBOE/OCC; **fallback: `analyst_revisions` if options unavailable** |
+
+Slate freeze rule: no candidate substitution after GL-0023 except the documented
+`options_flow_proxy → analyst_revisions` fallback. Fallback decision MUST be made BEFORE
+iter-30 starts (data availability check) and recorded as a GL-0023 amendment if
+triggered.
+
+**W8-V5 prospective anti-passenger bar (frozen forward; GL-0022):**
+
+| Bar | Metric | Threshold | Direction | Scope |
+|---|---|---|---|---|
+| **V5** | max_f ((Sharpe_without_f − Sharpe_full) / abs(Sharpe_full))_+ across all factors in any future ensemble | ≤ 0.10 | less-or-equal | PROSPECTIVE — applies to any Wave 9+ ensemble construction; NOT retroactive to Wave 6 |
+
+**V5 derivation memo (Wave 6 LOO calibration anchor).** Wave 6 V4 was a NEGATIVE-side
+test (does any LOO drop crater the ensemble?); it missed the POSITIVE-side failure mode
+(does the ensemble carry passengers that hurt aggregate Sharpe?). V5 catches the "1
+carrier + N anti-diversifying noise" pattern formally. **Calibration anchor:** observed
+Wave 6 LOO gain distribution (`results/validation/iter24_robustness/summary.json`,
+baseline Sharpe 0.5549): accruals dropped → +42.5% gain; ivol_20d_flipped dropped →
+−32.1% drop; momentum_2_12 dropped → +55.7% gain (max positive); piotroski_f_score
+dropped → +25.1% gain; profitability dropped → −1.4% drop. THREE of five LOO drops
+increased Sharpe by ≥ 25% — a clear passenger pattern that Wave 6 V4 (negative-side
+only) failed to catch. V5 ≤ 0.10 sits at ~5.5× safety margin below the worst observed
+positive gain (+0.557), and would have FLAGGED four of five Wave 6 factors as passengers
+(only ivol_20d_flipped and profitability would have passed). V5 is PROSPECTIVE — applies
+to any Wave 9+ ensemble construction, NOT retroactively to Wave 6 (Iron Rule 9
+anti-gaming clause).
+
+**Iron Rule 11 — Strategy-class isolation (NEW for Wave 8).** W8-D's single-factor
+`ivol_20d_flipped` strategy and W8-A's discovered factors are TWO DISTINCT strategy
+classes. They MUST be evaluated under SEPARATE governance rows and SEPARATE outcomes.
+No mixing of evidence across workstreams: W8-D evidence under
+`results/validation/wave8_d_single_factor/`; W8-A evidence under
+`results/factors/<candidate>/gate_results_v2_wave8.json` (parallel path; never
+overwrites canonical `gate_results.json` GL-0011 invariance or `gate_results_v2.json`
+Wave 5 evidence); W8-V5 governance pre-registration is PROSPECTIVE; the three-tier
+Wave 8 outcome routes each strategy class independently.
+
+**Iron Rule 12 — Holdout re-authorization required (NEW for Wave 8).** Wave 6's GL-0019
+retired the path to holdout consumption based on the +0.5549 ensemble strategy. Wave 8
+explores DIFFERENT strategy classes (single-factor and orthogonal-discovery). Even if
+W8-D PASSES all D-bars, holdout consumption requires a SEPARATE re-authorization
+governance row in Wave 9, modeled on GL-0017+GL-0018, NOT a continuation of Branch A
+authority. Iron Rule 10 (holdout-runner pre-land) carries forward, but the existing
+`scripts/run_holdout_once.py` pre-landed in Wave 6 P0-C was authored against the
++0.5549 K=3-of-N=5 ensemble execution path. It is **NOT automatically authorized for
+W8-D single-factor holdout or W9-A orthogonal-ensemble holdout**. Whichever Wave 9
+governance row authorizes holdout consumption MUST either (a) cite a strategy-class-specific
+runner pre-landed under that wave's P0 prep, OR (b) attach an explicit attestation that
+`run_holdout_once.py` has been audited line-by-line against the new strategy class's
+execution path and shown to generalize without modification. A bare reference to the
+Wave 6 pre-land is insufficient. This caveat was added at iter-27 in response to a
+Codex P1 finding before GL-0021 commit landed.
+
+**Wave 8 three-tier outcome routing (applied at iter-35; GL-0024):**
+
+| W8-D outcome (V_D1∧V_D2∧V_D3∧V_D4) | W8-A outcome (≥1 candidate G0-G5∧V_A7) | Wave 8 verdict | Wave 9 routing |
+|---|---|---|---|
+| PASS | ≥ 1 candidate PASSES | **DUAL-PATH** | Wave 9-D (single-factor holdout pre-auth) AND Wave 9-A (V5-bound orthogonal ensemble construction) |
+| PASS | 0 candidates PASS | **D-ONLY** | Wave 9-D single-factor holdout pre-auth; archive W8-A as exploratory |
+| FAIL | ≥ 1 candidate PASSES | **A-ONLY** | Wave 9-A V5-bound orthogonal ensemble construction; archive W8-D as exploratory |
+| FAIL | 0 candidates PASS | **DOUBLE-EXPLORATORY** | Both archived; Wave 9 = strategic re-planning |
+
+**Iter-by-iter execution map (Wave 8):**
+
+| Iter | Type | Goal | PASS condition | Codex consult |
+|---|---|---|---|---|
+| 27 (#157) | Governance-only | Pre-register W8-D V_D1..V_D4 + W8-A V_A7 + Iron Rules 11/12 (this section, GL-0021); pre-register V5 prospective bar (GL-0022) | both rows committed atomically, PDF regenerated, research-log appended off Wave 6 tip via `--expected-prev-hash` guard | **MANDATORY** (mirrors GL-0017 pre-registration consult) |
+| 28 (#158) | Mechanical | W8-D V_D1..V_D4 execution via `run_workstream_d_single_factor.py` (single-factor `ivol_20d_flipped`, NO ensemble) | V_D PASS = V_D1∧V_D2∧V_D3∧V_D4 | NO |
+| 29 (#159) | Governance-only | Freeze W8-A 5-candidate slate (GL-0023) BEFORE any candidate is screened | row committed, 5 candidates locked + fallback rule recorded | **MANDATORY** (locks slate prospectively) |
+| 30 (#160) | Mechanical | W8-A candidate #1 `52w_high_proximity` v2 G0-G5 + V_A7 | per-candidate PASS = G0-G5 ALL∧V_A7 | NO |
+| 31 (#161) | Mechanical | W8-A candidate #2 `short_ratio` | same | NO |
+| 32 (#162) | Mechanical | W8-A candidate #3 `ewmac` | same | NO |
+| 33 (#163) | Mechanical | W8-A candidate #4 `days_to_cover` | same | NO |
+| 34 (#164) | Mechanical | W8-A candidate #5 `options_flow_proxy` (or fallback `analyst_revisions`) | same | NO |
+| 35 (#165) | Governance-only | Wave 8 wrap GL-0024 three-tier outcome (DUAL-PATH / D-ONLY / A-ONLY / DOUBLE-EXPLORATORY); route to Wave 9 planning | row committed, §17.7 added, PDF regenerated, `WAVE_8_COMPLETE` promise emitted | **MANDATORY** for DUAL-PATH / D-ONLY / A-ONLY (each authorizes Wave 9 commitment); OPTIONAL for DOUBLE-EXPLORATORY (mechanical archive) |
+
+**NOT in scope for Wave 8:** holdout consumption (Iron Rule 12: separate Wave 9 row
+required even on W8-D PASS); Option B revival (Codex 2026-04-26 review rejected; Iron
+Rule 9 anti-gaming smell — do NOT reintroduce); retroactive V5 application to Wave 6
+(V5 prospective only); new aggregator architecture (W8-D = single-factor, W8-A =
+individual screens — no ensemble assembly until Wave 9-A); gate threshold changes
+(`config/gates_v2.yaml` and `config/gates.yaml` bit-identical); new factor admission
+decisions cited under v1 family (GL-0011 invariance preserved by parallel-path W8-A
+writes); falsification trigger changes; paper-stage entry; model class changes; Wave 6
+ensemble re-runs; Wave 9 planning details (routed in iter-35 GL-0024 but planned in
+separate wave-plan file).
+
+**Iron rule compliance check (per Wave 8 iter):** Rule 1 (no post-2023 dates — all
+Wave 8 computations use 2016-01-01..2023-12-31); Rule 2 (`config/gates_v2.yaml` and
+`config/gates.yaml` sha256s bit-identical); Rule 3 (no DB mocks — runs against
+`research.duckdb`); Rule 4 (no secrets); Rule 6 (hash chain — iter-27 chains off Wave 6
+tip `6eac383e...d031d7b1dcaf`); Rule 7 (`results/factors/*/gate_results.json` GL-0011
+invariance preserved; W8-A writes to `gate_results_v2_wave8.json` parallel path); Rule 8
+(gates frozen pre-screen); Rule 9 (GL-0017 Wave 6 bars never renegotiated retroactively;
+W8-D + W8-A bars frozen by GL-0021 + GL-0022 iter-27..iter-35; V5 prospective
+forward-frozen); Rule 10 (`scripts/run_holdout_once.py` already pre-landed in Wave 6
+P0-C; verification suffices); **Rule 11** (strategy-class isolation — W8-D and W8-A
+separate evidence paths and outcomes); **Rule 12** (holdout re-authorization required
+even on W8-D PASS — Wave 9 governance row needed).
+
+**Cross-references.** GL-0021 + GL-0022 rows in `docs/GOVERNANCE_LOG.md` §4;
+pre-registration session continuity from Wave 6 review via Codex session
+`019dc462-24c4-7d60-b217-6d5eda8199ec`; W8-A slate freeze in GL-0023 (iter-29 — separate
+row); Wave 8 outcome in GL-0024 (iter-35 — three-tier row); plan
+`/home/song856854132/.claude/plans/dreamy-riding-quasar.md` (full multi-workstream
+design); §17.4 (GL-0019 Branch B verdict — origin of Wave 8); §17.3 (GL-0017 — Wave 6
+bars Iron Rule 9 freeze pattern that Wave 8 mirrors).
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
