@@ -1327,6 +1327,107 @@ Each LOO run uses K=2-of-N=4 (structurally analogous to baseline K=3-of-N=5; bot
 
 **Iron rule compliance check (per iter):** Rule 1 (no post-2023 dates — all Wave 6 computations use 2016-01-01..2023-12-31); Rule 2 (`config/gates_v2.yaml` and `config/gates.yaml` sha256s bit-identical); Rule 3 (no DB mocks — runs against `research.duckdb`); Rule 4 (no secrets); Rule 6 (hash chain — iter-21 chains off Wave 5 tip `065d03e6...0268a8`); Rule 7 (`results/factors/*/gate_results.json` GL-0011 invariance preserved); Rule 8 (gates frozen pre-screen); Rule 9 (GL-0017 bars frozen iter-21..iter-25, no renegotiation); Rule 10 (`scripts/run_holdout_once.py` MUST pre-land before iter-26).
 
+### 17.4 Wave 6 Validation Outcome (iter-25 #155, GL-0019 Branch B EXPLORATORY VERDICT)
+
+Wave 6 closed on 2026-04-26 with **GL-0019 EXPLORATORY VERDICT** (Codex Path D) on
+commit `<iter-25-commit>` chained off iter-24 tip `a33c9888cdd51dbbf09dbf34ee6de58a`.
+The four pre-registered V1/V2/V3/V4 bars from GL-0017 (sha-frozen iter-21..iter-25 per
+Iron Rule 9) were applied verbatim. **Three of four FAILED**; Branch B routing was
+**triple-confirmed** under the GL-0017 anti-gaming clause requiring unanimous V1∧V2∧V3∧V4
+PASS for Branch A authorization.
+
+**Verdict table (canonical evidence cites):**
+
+| Bar | Threshold | Observed | Verdict | Evidence file |
+|-----|-----------|----------|---------|---------------|
+| V1 (Romano-Wolf max adjusted-p) | < 0.05 | **1.0000** | **FAIL** | `results/validation/iter22_romano_wolf/result.json` |
+| V2 (block bootstrap CI lower bound) | ≥ 0.30 | **0.18166** | **FAIL** | `results/validation/iter23_bootstrap_ci/result.json` |
+| V3 (max relative Sharpe deviation across 4-cell perturbation grid) | ≤ 0.20 | **0.25965** | **FAIL** | `results/validation/iter24_robustness/summary.json` |
+| V4a (min LOO Sharpe across 5 drops) | ≥ 0.30 | **0.37687** | **PASS** | `results/validation/iter24_robustness/summary.json` |
+| V4b (max negative-side relative drop) | ≤ 0.35 | **0.32084** | **PASS** | `results/validation/iter24_robustness/summary.json` |
+| V4 = V4a ∧ V4b | both PASS | both PASS | **PASS** | (composite) |
+| **Joint(V3 ∧ V4)** | both PASS | V3 FAIL | **FAIL** | (composite) |
+| **GL-0017 unanimity (V1 ∧ V2 ∧ V3 ∧ V4)** | all four PASS | 3 FAIL | **FAIL → Branch B** | (composite) |
+
+**Per-bar driver memo (one line each):**
+
+- **V1 FAIL — multiple-testing carrier pattern.** SOLE driver = `piotroski_f_score`
+  with adjusted_p = 1.0; the other four factors (`accruals`, `ivol_20d_flipped`,
+  `momentum_2_12`, `profitability`) all clear at adjusted_p = 0.0. The family-wise
+  error rate is being carried by one factor that fails to reject the null at the
+  500-rep stepdown — the 5-factor active universe is structurally a 4-factor universe
+  + 1 multiple-testing tax payer.
+- **V2 FAIL — effective-N inflation under ρ=0.834.** ci_lower=0.18166, ci_upper=2.33330,
+  ci_width=2.15164. The width is consistent with the iter-15 diversification illusion
+  diagnosis: ρ=0.834 across 10 off-diagonal factor pairs shrinks the effective sample
+  size dramatically, inflating bootstrap variance and dropping the 95% lower bound
+  into ABANDONMENT_CRITERIA.md A9 weak-signal range [0, 0.3].
+- **V3 FAIL — K-coverage sensitivity on the loose side.** Only the K=2 perturbation cell
+  trips the bar (Sharpe=0.6990, rel_dev=25.97%); K=4, n_q=3, n_q=10 all PASS. Strategy
+  performance is asymmetrically sensitive to LOOSENING the coverage requirement
+  (K=2 admits more dates with thin factor coverage and the Sharpe estimate moves
+  unstably).
+- **V4 PASS (informationally weak) — single-factor carrier camouflage hypothesis.**
+  Four of five LOO drops INCREASE Sharpe (`accruals` LOO → 0.7907, `momentum_2_12`
+  LOO → 0.8639, `piotroski_f_score` LOO → 0.6944, `profitability` LOO → 0.5470 —
+  effectively flat). Only `ivol_20d_flipped` LOO has a structurally meaningful drop
+  (Sharpe → 0.3769; V4b margin = 4.2pp from the 35% relative-drop bar). V4 PASSED on
+  the threshold but informationally CONFIRMS the iter-15 Wave 6 design hypothesis:
+  the 5-factor ensemble is largely `ivol_20d_flipped` carrying a noisy 4-factor
+  accessory pack.
+
+**Combined diagnosis.** Two structural weaknesses share a single root cause in the
+K-of-N coverage gating: (a) the multiple-testing carrier (piotroski_f_score) is
+retained ONLY because K=3-of-N=5 admits dates where it fails to clear the per-factor
+significance bar, and (b) the single-factor load-bearing pattern (ivol_20d_flipped) is
+exposed by V4 LOO showing four drops UP and one drop down. The +0.5549 OOS Sharpe is
+therefore not a "5-factor ensemble" result in the colloquial sense; it is a
+"1.92 ivol_20d_flipped + noise" result wearing five-factor camouflage.
+
+**Branch routing (Iron Rule 9 anti-gaming binding).** GL-0017 pre-registered the
+unanimity rule: Branch A (HOLDOUT AUTHORIZED) requires V1 ∧ V2 ∧ V3 ∧ V4 all PASS;
+any FAIL routes to Branch B (EXPLORATORY VERDICT, Path D). Three FAILs (V1, V2, V3)
+triple-confirm Branch B. No 5th bar may be added; no Bonferroni-FDR substitution; no
+weighted scorecard; no unanimity relaxation; no conditional 3-of-4 tiers. Bars frozen
+iter-21..iter-25, period. Verdict applied verbatim.
+
+**Exploratory-archive policy.** Per Iron Rule 9, all canonical Wave 6 evidence
+(`results/validation/iter22_*/`, `iter23_*/`, `iter24_*/`) is preserved as raw
+research record — these files were produced under pre-registered bars and are NOT
+"scratch" outputs. The v2 active-factor universe (5-factor frozen iter-15 GL-0014)
+is archived as exploratory-grade evidence: an in-sample Sharpe of +0.5549 cleared
+the GL-0015 Phase 3 target but failed three of four Wave 6 statistical robustness
+bars. Future strategy work may CITE this evidence but may NOT use it to authorize
+holdout consumption or paper-stage entry.
+
+**Wave 7 dormancy declaration.**
+- `results/holdout/.holdout_used` is **NOT created**.
+- `results/holdout/.holdout_in_progress` is **NOT created**.
+- `scripts/run_holdout_once.py` (Iron Rule 10 pre-land prerequisite) is **NOT triggered**.
+- The 2024-2025 holdout window remains **PROTECTED and UNCONSUMED**.
+- Wave 7 (iter-26) **WILL NOT START**. There is no next-iteration milestone active.
+- `config/deployment_ladder.yaml` paper-stage entry gate is unreachable for this
+  strategy variant — paper entry requires holdout PASS first per `deployment_ladder.yaml:7`.
+
+**Iron Rule compliance check (iter-25 wrap):**
+- Rule 1: no post-2023 dates touched; Wave 6 computations 2016-01-01..2023-12-31 only
+- Rule 2: `config/gates_v2.yaml` sha256 `bd0fc5de...d92979d2` and `config/gates.yaml`
+  sha256 `521b7571...f559af4` bit-identical before/after
+- Rule 3: no DB mocks; all Wave 6 stats run against `research.duckdb`
+- Rule 4: no secrets introduced
+- Rule 6: hash chain intact; iter-25 chains off iter-24 tip `a33c9888cdd51dbbf09dbf34ee6de58a`
+- Rule 7: `results/factors/*/gate_results.json` (GL-0011 canonical v1 FAILs) untouched
+- Rule 8: no threshold adjustments — GL-0017 bars applied verbatim
+- Rule 9: GL-0017 V1/V2/V3/V4 thresholds frozen iter-21..iter-25; **no renegotiation
+  attempted, no FAIL re-classified as PASS, no anti-gaming clause weakened**
+- Rule 10: `scripts/run_holdout_once.py` pre-land prerequisite **NOT triggered** —
+  Branch B blocks Wave 7 entirely
+
+**Cross-references.** GL-0019 row in `docs/GOVERNANCE_LOG.md` §4; audit memo at
+`docs/audit/wave6_exploratory_2026-04-26.md`; pre-registration at GL-0017; Phase 3 exit
+authorization (now reclassified exploratory) at GL-0016; v2 family pre-registration
+at GL-0014; Phase 3 target freeze at GL-0015.
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
