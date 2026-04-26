@@ -1516,20 +1516,39 @@ asymmetry — newcomers must clear < 0.50 while incumbents sit at 0.834 — is i
 incumbents were not subjected to V_A7 because V_A7 did not exist when v2 universe was
 admitted (Iron Rule 8: gates frozen pre-screen). V_A7 is forward-only.
 
-**W8-A candidate slate placeholder (full freeze in GL-0023, iter-29):**
+**W8-A restricted candidate slate (frozen in GL-0023, iter-29 — execution-readiness gate applied per Codex 4 P0 findings).**
 
-| # | Candidate | Tier | Friction Hypothesis | Data Source |
+The plan-of-record 5-candidate slate failed an execution-readiness pre-check at iter-29:
+3 of 5 candidates (`short_ratio`, `days_to_cover`, `options_flow_proxy`) lack BOTH
+ingested data AND a registered compute function in `src/nyse_core/features/`. Calling
+iter-30..iter-34 "mechanical" while 60% of candidates require new data adapters + new
+compute functions + new tests would have re-injected the kind of slack Iron Rules 9 +
+10 + 11 were written to prevent. The Codex iter-29 review (session
+`019dc462-24c4-7d60-b217-6d5eda8199ec`, resumed) returned 4 P0 findings collectively
+forcing the restriction — see GL-0023 row in `docs/GOVERNANCE_LOG.md` §4 for full
+finding texts.
+
+**READY for screening (admitted to W8-A iter-30..iter-31):**
+
+| # | Candidate | Tier | Friction Hypothesis | Data Source | Compute Fn |
+|---|---|---|---|---|---|
+| 1 | `52w_high_proximity` | T1 | Disposition effect + reference-point anchoring → predictable continuation | OHLCV (already ingested) | `src/nyse_core/features/price_volume.py:compute_52w_high_proximity` (already registered) |
+| 2 | `ewmac` | T3 | Carver cross-sectional trend rule — orthogonal to 12-month momentum | OHLCV (already ingested) | `src/nyse_core/features/sentiment.py:compute_ewmac` (already registered) |
+
+**REMOVED_PRE_SCREEN (NOT admitted to Wave 8; archived under GL-0023 with explicit rationale):**
+
+| # | Candidate | Tier | Removal reason | Re-introduction path |
 |---|---|---|---|---|
-| 1 | `52w_high_proximity` | T1 | Disposition effect + reference-point anchoring | OHLCV |
-| 2 | `short_ratio` | T2 | Informed bearish traders signal negative returns; costly shorting preserves edge | FINRA bi-monthly |
-| 3 | `ewmac` | T3 | Carver cross-sectional trend rule | OHLCV |
-| 4 | `days_to_cover` | T2 | Short-side capital constraint complementary to short_ratio | FINRA bi-monthly |
-| 5 | `options_flow_proxy` | T3 | Put/call skew or volume imbalance — alt-data orthogonality | CBOE/OCC; **fallback: `analyst_revisions` if options unavailable** |
+| 3 | `short_ratio` | T2 | No FINRA short-interest data ingested into `research.duckdb`; no `compute_short_ratio` registered with the registry. Adding both = data adapter + compute fn + sign-convention diagnostic + tests = ~300+ LOC of pre-screen prep, not "mechanical screening" | Future SEPARATE governance row with own slate freeze + own Codex consult after FINRA adapter lands |
+| 4 | `days_to_cover` | T2 | Same blocker as #3 (FINRA SI dependency); same compute-fn gap | Same path as #3; re-introduce alongside `short_ratio` once adapter lands |
+| 5 | `options_flow_proxy` | T3 | No CBOE/OCC adapter exists; no `compute_options_flow_proxy` registered. Plan-of-record fallback `analyst_revisions` ALSO unavailable (no EDGAR analyst-revision adapter, no compute fn) — both options counterfeit at slate-freeze time. Per Codex P0-2: a fallback that is itself unbuildable is governance theater | Future SEPARATE governance row after EITHER CBOE/OCC OR EDGAR analyst-revision adapter lands |
 
-Slate freeze rule: no candidate substitution after GL-0023 except the documented
-`options_flow_proxy → analyst_revisions` fallback. Fallback decision MUST be made BEFORE
-iter-30 starts (data availability check) and recorded as a GL-0023 amendment if
-triggered.
+**Slate freeze rule (revised under GL-0023):** no candidate substitution after GL-0023.
+The plan-of-record fallback (`options_flow_proxy → analyst_revisions`) is RETIRED — both
+were unbuildable at iter-29 — and is NOT carried forward into the restricted slate. Any
+future re-introduction of REMOVED_PRE_SCREEN candidates requires a SEPARATE governance
+row with its own slate freeze and its own Codex consult; bringing them in via amendment
+to GL-0023 is forbidden under Iron Rule 8.
 
 **W8-V5 prospective anti-passenger bar (frozen forward; GL-0022):**
 
@@ -1593,13 +1612,10 @@ Codex P1 finding before GL-0021 commit landed.
 |---|---|---|---|---|
 | 27 (#157) | Governance-only | Pre-register W8-D V_D1..V_D4 + W8-A V_A7 + Iron Rules 11/12 (this section, GL-0021); pre-register V5 prospective bar (GL-0022) | both rows committed atomically, PDF regenerated, research-log appended off Wave 6 tip via `--expected-prev-hash` guard | **MANDATORY** (mirrors GL-0017 pre-registration consult) |
 | 28 (#158) | Mechanical | W8-D V_D1..V_D4 execution via `run_workstream_d_single_factor.py` (single-factor `ivol_20d_flipped`, NO ensemble) | V_D PASS = V_D1∧V_D2∧V_D3∧V_D4 | NO |
-| 29 (#159) | Governance-only | Freeze W8-A 5-candidate slate (GL-0023) BEFORE any candidate is screened | row committed, 5 candidates locked + fallback rule recorded | **MANDATORY** (locks slate prospectively) |
-| 30 (#160) | Mechanical | W8-A candidate #1 `52w_high_proximity` v2 G0-G5 + V_A7 | per-candidate PASS = G0-G5 ALL∧V_A7 | NO |
-| 31 (#161) | Mechanical | W8-A candidate #2 `short_ratio` | same | NO |
-| 32 (#162) | Mechanical | W8-A candidate #3 `ewmac` | same | NO |
-| 33 (#163) | Mechanical | W8-A candidate #4 `days_to_cover` | same | NO |
-| 34 (#164) | Mechanical | W8-A candidate #5 `options_flow_proxy` (or fallback `analyst_revisions`) | same | NO |
-| 35 (#165) | Governance-only | Wave 8 wrap GL-0024 three-tier outcome (DUAL-PATH / D-ONLY / A-ONLY / DOUBLE-EXPLORATORY); route to Wave 9 planning | row committed, §17.7 added, PDF regenerated, `WAVE_8_COMPLETE` promise emitted | **MANDATORY** for DUAL-PATH / D-ONLY / A-ONLY (each authorizes Wave 9 commitment); OPTIONAL for DOUBLE-EXPLORATORY (mechanical archive) |
+| 29 (#159) | Governance-only | Freeze W8-A RESTRICTED candidate slate (GL-0023) under Codex 4 P0 execution-readiness findings: 2 READY candidates (`52w_high_proximity`, `ewmac`) ADMITTED; 3 candidates (`short_ratio`, `days_to_cover`, `options_flow_proxy` + retired `analyst_revisions` fallback) REMOVED_PRE_SCREEN with explicit data + compute-fn gap rationale; Wave 8 schedule compressed iter-30..iter-32 (was iter-30..iter-35) | row committed, restricted slate locked, REMOVED_PRE_SCREEN appendix recorded, P0/P1 findings cited and addressed in flight | **MANDATORY** (locks restricted slate prospectively; addresses P0 anti-gaming hole, counterfeit-fallback hole, "mechanical" mislabel, Wave 9 routing ambiguity) |
+| 30 (#160) | Mechanical | W8-A candidate #1 `52w_high_proximity` v2 G0-G5 + V_A7 (READY: OHLCV ingested + compute fn registered) | per-candidate PASS = G0-G5 ALL∧V_A7 | NO |
+| 31 (#161) | Mechanical | W8-A candidate #2 `ewmac` v2 G0-G5 + V_A7 (READY: OHLCV ingested + compute fn registered) | per-candidate PASS = G0-G5 ALL∧V_A7 | NO |
+| 32 (#162) | Governance-only | Wave 8 wrap GL-0024 three-tier outcome (DUAL-PATH / D-ONLY / A-ONLY / DOUBLE-EXPLORATORY) over W8-D verdict (PASS at iter-28) ∧ W8-A restricted-slate verdicts (≥1 of 2 admitted candidates clears v2 G0-G5∧V_A7); route to Wave 9 planning | row committed, §17.7 added, PDF regenerated, `WAVE_8_COMPLETE` promise emitted | **MANDATORY** for DUAL-PATH / D-ONLY / A-ONLY (each authorizes Wave 9 commitment); OPTIONAL for DOUBLE-EXPLORATORY (mechanical archive) |
 
 **NOT in scope for Wave 8:** holdout consumption (Iron Rule 12: separate Wave 9 row
 required even on W8-D PASS); Option B revival (Codex 2026-04-26 review rejected; Iron
@@ -1625,13 +1641,19 @@ P0-C; verification suffices); **Rule 11** (strategy-class isolation — W8-D and
 separate evidence paths and outcomes); **Rule 12** (holdout re-authorization required
 even on W8-D PASS — Wave 9 governance row needed).
 
-**Cross-references.** GL-0021 + GL-0022 rows in `docs/GOVERNANCE_LOG.md` §4;
-pre-registration session continuity from Wave 6 review via Codex session
-`019dc462-24c4-7d60-b217-6d5eda8199ec`; W8-A slate freeze in GL-0023 (iter-29 — separate
-row); Wave 8 outcome in GL-0024 (iter-35 — three-tier row); plan
-`/home/song856854132/.claude/plans/dreamy-riding-quasar.md` (full multi-workstream
-design); §17.4 (GL-0019 Branch B verdict — origin of Wave 8); §17.3 (GL-0017 — Wave 6
-bars Iron Rule 9 freeze pattern that Wave 8 mirrors).
+**Cross-references.** GL-0021 + GL-0022 rows in `docs/GOVERNANCE_LOG.md` §4
+(iter-27 atomic pre-registration); GL-0023 row in `docs/GOVERNANCE_LOG.md` §4 (iter-29
+W8-A restricted slate freeze under Codex 4 P0 + 2 P1 findings; landed atomically with
+this revision); pre-registration session continuity from Wave 6 review via Codex session
+`019dc462-24c4-7d60-b217-6d5eda8199ec` (resumed at iter-27 for bar derivation review and
+again at iter-29 for slate-freeze red-team); W8-D evidence in
+`results/validation/wave8_d_single_factor/result.json` (iter-28 PASS sha256
+`1d1a8be0cb3c4cb1cb3e4de73f0e2b7654c5c080a33f51f5912c2dfd762d0bf2`); Wave 8 outcome in
+GL-0024 (iter-32 — three-tier row, compressed from iter-35 under GL-0023 slate
+restriction); plan `/home/song856854132/.claude/plans/dreamy-riding-quasar.md` (full
+multi-workstream design — note: plan-of-record 5-candidate slate superseded by GL-0023
+restricted 2-candidate slate); §17.4 (GL-0019 Branch B verdict — origin of Wave 8); §17.3
+(GL-0017 — Wave 6 bars Iron Rule 9 freeze pattern that Wave 8 mirrors).
 
 ### Phase 3 Codex Review Detail (Most Recent)
 
