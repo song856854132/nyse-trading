@@ -1161,9 +1161,9 @@ ERROR PATH (EDGAR API down during rebalance window):
 | **Phase 2** | Data + Execution | Complete | ~130 | Data adapters, storage, nautilus_bridge, rate_limiter, data_quality, alert_bot |
 | **Phase 3** | Factor Research (infrastructure) | Complete | ~210 | All 6 factor families, factor_screening, factor_correlation, attribution, synthetic_calibration, gate evaluation |
 | **Phase 3 Codex** | Codex Review Hardening | Complete | +64 (998 total) | Market-model IVOL, FINRA PiT lag, proper Romano-Wolf stepdown, ExecutionPurgedCV, multi-dataset routing, winsorization, G5 ensemble IC delta, gate alignment |
-| **Phase 3 (real data)** | Factor admission on 2016-2023 S&P 500 | **EXIT AUTHORIZED (GL-0016, 2026-04-25)** | -- | iter-0 v1 family: 6/6 FAIL (canonical FAIL verdicts preserved per GL-0011). v2 family (GL-0014, V2-PREREG-2026-04-24): 5-factor active universe `{ivol_20d_flipped, piotroski_f_score, momentum_2_12, accruals, profitability}`; iter-19 ensemble OOS Sharpe **+0.5549 ≥ 0.50** GL-0015 frozen target (perm p=0.0020). See §17.1 (iter-0 FAIL audit, preserved) and §17.2 (Wave 5 v2 ensemble PASS) |
+| **Phase 3 (real data)** | Factor admission on 2016-2023 S&P 500 | **EXIT AUTHORIZED (GL-0016, 2026-04-25); reclassified exploratory by GL-0019 (2026-04-26)** | -- | iter-0 v1 family: 6/6 FAIL (canonical FAIL verdicts preserved per GL-0011). v2 family (GL-0014, V2-PREREG-2026-04-24): 5-factor active universe `{ivol_20d_flipped, piotroski_f_score, momentum_2_12, accruals, profitability}`; iter-19 ensemble OOS Sharpe **+0.5549 ≥ 0.50** GL-0015 frozen target (perm p=0.0020). Subsequently failed 3-of-4 Wave 6 robustness bars (V1/V2/V3 FAIL; V4 PASS but informationally damning) and is now archived as exploratory-grade evidence per GL-0019 Branch B. See §17.1 (iter-0 FAIL audit), §17.2 (Wave 5 v2 ensemble), §17.3 (Wave 6 pre-registration), §17.4 (Wave 6 verdict). |
 | **Phase 4** | Optimization + ML | Complete (on synthetic) | +142 | GBM/Neural models, strict walk-forward rewrite, drift detection, strategy_registry, optimizer, PCA dedup, dashboard, enhanced falsification |
-| **Phase 5** | Paper Trading | **Blocked on statistical validation suite** | -- | Phase 3 exit authorized (GL-0016). Outstanding §5 pending authorization rows: Romano-Wolf adjusted p < 0.05; bootstrap CI lower bound > 0; parameter sensitivity ±20%; one-shot 2024-2025 holdout test (untouched per iron rule 1). Then paper-stage entry per `config/deployment_ladder.yaml`. |
+| **Phase 5** | Paper Trading | **Dormant — Wave 6 EXPLORATORY VERDICT (GL-0019, Branch B)** | -- | Phase 3 exit was authorized at GL-0016 (+0.5549 ≥ 0.50), but Wave 6 statistical validation (GL-0017 V1/V2/V3/V4 bars frozen iter-21..iter-25 under Iron Rule 9) closed **3-of-4 FAIL** on 2026-04-26: V1 Romano-Wolf max(adj-p)=1.0000 (FAIL), V2 bootstrap ci_lower=0.18166 (FAIL), V3 max_rel_dev=25.97% (FAIL), V4 PASS but informationally damning (4 of 5 LOO drops INCREASE Sharpe — single-factor `ivol_20d_flipped` carrier camouflage). Branch B routed; v2 ensemble archived as exploratory-grade evidence; one-shot 2024-2025 holdout PROTECTED and unconsumed (`results/holdout/.holdout_used` not created); Wave 7 (iter-26) will not start; paper-stage entry gate remains unreachable for this strategy variant. Future paper-entry path requires a fresh strategy class with factors passing v2 G0-G5 individually + Wave-8-class pre-registration under a fresh GL-NNNN row mirroring GL-0017's freeze pattern. See §17.4. |
 | **Phase 6** | Live Deployment | Not started | -- | Shadow → Min Live → Scale |
 
 ### 17.1 Real-Data Factor Admission Outcomes (2026-04-17 to 2026-04-18)
@@ -1330,7 +1330,10 @@ Each LOO run uses K=2-of-N=4 (structurally analogous to baseline K=3-of-N=5; bot
 ### 17.4 Wave 6 Validation Outcome (iter-25 #155, GL-0019 Branch B EXPLORATORY VERDICT)
 
 Wave 6 closed on 2026-04-26 with **GL-0019 EXPLORATORY VERDICT** (Codex Path D) on
-commit `<iter-25-commit>` chained off iter-24 tip `a33c9888cdd51dbbf09dbf34ee6de58a`.
+commit `5cffeca` chained off iter-24 tip `a33c9888cdd51dbbf09dbf34ee6de58a`. iter-25
+research-log hash `6eac383e509b786dc863b9996587b0c47c94d0ef68358b4ae1bd5031d7b1dcaf`
+becomes the Wave 6 tip and the chain anchor for any future Wave 8 (or analogous)
+re-entry per GL-0019's "future re-entry requires" clauses.
 The four pre-registered V1/V2/V3/V4 bars from GL-0017 (sha-frozen iter-21..iter-25 per
 Iron Rule 9) were applied verbatim. **Three of four FAILED**; Branch B routing was
 **triple-confirmed** under the GL-0017 anti-gaming clause requiring unanimous V1∧V2∧V3∧V4
