@@ -1,0 +1,19 @@
+{
+  "baseline_sharpe": 0.5549046499613932,
+  "diagnostics": {
+    "n_ensemble_dates": 417,
+    "n_ensemble_rows": 193200,
+    "n_periods": 415
+  },
+  "dropped_factor": "momentum_2_12",
+  "k_coverage": 2,
+  "n_remaining_factors": 4,
+  "negative_side_relative_drop": null,
+  "remaining_factors": [
+    "accruals",
+    "ivol_20d_flipped",
+    "piotroski_f_score",
+    "profitability"
+  ],
+  "sharpe": 0.8638685370011844
+}

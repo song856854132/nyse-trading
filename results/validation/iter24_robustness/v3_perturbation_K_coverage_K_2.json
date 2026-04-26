@@ -1,0 +1,16 @@
+{
+  "baseline_sharpe": 0.5549046499613932,
+  "diagnostics": {
+    "n_ensemble_dates": 417,
+    "n_ensemble_rows": 197314,
+    "n_periods": 415
+  },
+  "kwargs": {
+    "min_factor_coverage": 2,
+    "n_quantiles": 5
+  },
+  "parameter": "K_coverage",
+  "perturbation_label": "K=2",
+  "relative_deviation": 0.25965209068721296,
+  "sharpe": 0.698986802455925
+}
