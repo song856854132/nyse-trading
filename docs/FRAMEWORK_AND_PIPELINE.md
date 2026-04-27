@@ -1655,6 +1655,131 @@ multi-workstream design — note: plan-of-record 5-candidate slate superseded by
 restricted 2-candidate slate); §17.4 (GL-0019 Branch B verdict — origin of Wave 8); §17.3
 (GL-0017 — Wave 6 bars Iron Rule 9 freeze pattern that Wave 8 mirrors).
 
+### 17.7 Wave 8 Outcome (iter-32 #162 GL-0024 — D-ONLY tier, WAVE_8_COMPLETE)
+
+**Status:** WAVE_8_COMPLETE 2026-04-27 (iter-32 #162 GL-0024). Wave 8 emitted
+**D-ONLY** under Iron Rule 11 strategy-class isolation: W8-D single-factor
+`ivol_20d_flipped` PASSED all four pre-registered bars (V_D1..V_D4) and
+W8-A 0-of-2 admitted candidates (`52w_high_proximity`, `ewmac`) PASSED the v2
+G0-G5 + V_A7 stack under the GL-0023 restricted slate. The wrap was compressed
+from iter-35 to iter-32 under GL-0023 — three plan-of-record candidates
+(`short_ratio`, `days_to_cover`, `options_flow_proxy`) were REMOVED_PRE_SCREEN
+with documented data + compute-fn gap rationale before screening, the
+plan-of-record `analyst_revisions` fallback was retired as counterfeit at
+iter-29, and the W8-A denominator is therefore closed at **0-of-2 admitted
+candidates**, not `0-of-N`.
+
+**Wave 8 verdict table (canonical evidence cites, frozen-bar AND-construction):**
+
+| Workstream | Candidate | Bars (observed → verdict) | Failure mode | Verdict | Evidence file (sha256) |
+|---|---|---|---|---|---|
+| **W8-D** | `ivol_20d_flipped` (single-factor, top_n=20, sell_buffer=1.5, equal_weight, regime overlay) | V_D1 oos_sharpe=0.8765 ≥ 0.30 (PASS); V_D2 permutation_p=0.0020 < 0.05 (PASS, 500 reps, block=21); V_D3 bootstrap_ci_lower=0.8007 ≥ 0.20 (PASS, 10000 reps, block=63); V_D4 min_regime_sharpe=0.5201 ≥ 0.20 (PASS, bull n=320 / bear n=92, bear sharpe 1.7418) | — (carrier confirmed; single-factor 0.876 strictly > Wave 6 ensemble 0.5549) | **PASS** | `results/validation/wave8_d_single_factor/result.json` (`1d1a8be0cb3c4cb1cb3e4de73f0e2b7654c5c080a33f51f5912c2dfd762d0bf2`) |
+| **W8-A** | `52w_high_proximity` (iter-30 #160) | oos_sharpe=-1.2219 (G0 FAIL); permutation_p=1.0000 (G1 FAIL); ic_mean=-0.0055 (G2 FAIL); ic_ir=-0.0235 (G3 FAIL); max_drawdown=-0.6052 (G4 FAIL); G5 max_return_decile_corr=0.8210 ≤ 0.90 (PASS); V_A7 max\|corr\|=0.6962 ≥ 0.50 (FAIL, peak vs `momentum_2_12` +0.6962, secondary `ivol_20d_flipped` −0.6858) | **redundant-and-bad** (V_A7 FAIL ∧ G0-G4 FAIL) | **FAIL** | `results/factors/52w_high_proximity/gate_results_v2_wave8.json` (`f7c15921f4e563f5ab5ebe9297f5d328097ca60173f067a108a083057afe6804`) |
+| **W8-A** | `ewmac` (iter-31 #161) | oos_sharpe=-1.5118 (G0 FAIL); permutation_p=1.0000 (G1 FAIL); ic_mean=-0.0189 (G2 FAIL); ic_ir=-0.1034 (G3 FAIL); max_drawdown=-0.5490 (G4 FAIL); G5 max_return_decile_corr=0.8250 ≤ 0.90 (PASS); V_A7 max\|corr\|=0.4293 < 0.50 (PASS, peak vs `ivol_20d_flipped` −0.4293, secondary `momentum_2_12` +0.3434) | **orthogonal-but-powerless** (V_A7 PASS ∧ G0-G4 FAIL) | **FAIL** | `results/factors/ewmac/gate_results_v2_wave8.json` (`7c0cdc546e3df89280f10f82f016a0d911b309e0181f1ada641eff2d86eb233f`) |
+| **W8-A overall** | (admitted candidates only, GL-0023 restricted slate) | 0-of-2 PASS — denominator closed at 2 by GL-0023 PRE_SCREEN removals | per-candidate taxonomy preserved (the two FAILs are NOT the same) | **0/2 PASS** | (composite) |
+
+**Three-tier outcome (per §17.6 GL-0021 routing table):** W8-D PASS ∧ W8-A
+0-of-2 admitted candidates PASS = **D-ONLY**.
+
+**Wave 9 routing pointer.** Wave 9-D single-factor `ivol_20d_flipped` holdout
+pre-auth path is **ROUTED**, not **AUTHORIZED**. ROUTED ≠ AUTHORIZED — this row
+makes Wave 9-D eligible for a separate pre-authorization governance review
+(mirroring the GL-0017+GL-0018 single-track pattern); it does NOT consume the
+holdout, does NOT release Iron Rule 10 generalization attestation, and does NOT
+pre-approve any Wave 9-D scope decision. Wave 9-A orthogonal-ensemble
+construction with V5 prospective bar is **NOT TRIGGERED** — the restricted W8-A
+slate produced no admissible factors. The W8-A workstream is archived as
+exploratory-grade evidence under per-candidate failure-mode taxonomy preserved
+verbatim: `52w_high_proximity` "redundant-and-bad" ≠ `ewmac`
+"orthogonal-but-powerless"; the two failures must remain distinguishable for any
+Wave 10+ re-screen design (redundant-and-bad candidates do not reward
+construction-tweak retries; orthogonal-but-powerless candidates may reward
+strategy-class redesign outside the cross-sectional rank-percentile harness, but
+that redesign is OUTSIDE Wave 8 scope and is not authorized by this row).
+
+**Wave 9-D scope guardrail (forward-binding from GL-0024).** Between this row
+and the Wave 9-D pre-auth governance row: **no factor additions, no parameter
+retuning, no construction changes**. The pre-auth row, when drafted, must
+operate on the EXACT W8-D single-factor `ivol_20d_flipped` construction
+validated at iter-28 (top_n=20, sell_buffer=1.5, equal_weight, no K-of-N
+coverage gate, no ensemble aggregator, SPY SMA200 regime overlay per
+`config/strategy_params.yaml`); no sector-neutralization or volatility-scaling
+overlays; no lookback period changes for the `ivol_20d_flipped` factor. Any
+deviation is Wave 10 in disguise and requires a fresh pre-registration row
+mirroring GL-0017's Iron Rule 9 freeze pattern. This guardrail closes the
+tunnel risk where D-ONLY routing could otherwise be reopened post-hoc as a
+vehicle for factor or construction edits before the Wave 9-D pre-auth row.
+
+**V5 prospective-forward-frozen attestation.** GL-0022's V5 anti-passenger bar
+(threshold ≤ 0.10, max positive-side LOO gain across all factors in any future
+ensemble) remains **unconsumed and frozen forward** — D-ONLY routing leaves V5
+unconsumed (single-factor strategies have no aggregate ensemble Sharpe to
+perturb, so V5 is not applicable in Wave 9-D scope) but NOT retired; V5 stays
+prospective-forward for any future Wave 9+ ensemble construction (i.e., any
+A-track re-entry via a SEPARATE governance row), and GL-0022 is NOT closed by
+Wave 8 D-ONLY emission.
+
+**Iron Rule 1-12 attestation.** Rule 1 (no post-2023 dates — all iter-27..iter-32
+artefacts use 2016-01-01..2023-12-31 only); Rule 2 (`config/gates_v2.yaml`
+sha256 `bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2` and
+`config/gates.yaml` sha256
+`521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4` bit-identical
+through Wave 8); Rule 3 (no DB mocks — all evidence from `research.duckdb`);
+Rule 4 (no secrets); Rule 6 (hash chain intact iter-27 #157 → iter-32 #162);
+Rule 7 (W8-A candidates `52w_high_proximity` and `ewmac` are first-screen
+discoveries with NO canonical `results/factors/<candidate>/gate_results.json` —
+GL-0011 canonical invariance is preserved by writing ONLY to parallel-path
+`gate_results_v2_wave8.json`; no v1-family admission decision was created or
+modified for either candidate, and existing canonical files for v2-admitted
+factors are untouched); Rule 8 (gates frozen
+pre-screen — V_D and V_A7 thresholds bit-identical from GL-0021); Rule 9 (Wave
+6 V1/V2/V3/V4 bars not renegotiated; W8-D bars formed under their own
+pre-registration row GL-0021); Rule 10 (`scripts/run_holdout_once.py` pre-landed
+and untouched — `results/holdout/.holdout_used` and `.holdout_in_progress`
+absent through Wave 8); Rule 11 (W8-D evidence at
+`results/validation/wave8_d_single_factor/`; W8-A evidence at
+`results/factors/<candidate>/gate_results_v2_wave8.json`; no cross-strategy
+mixing); Rule 12 (D-ONLY routing emits ROUTED eligibility, not authorization —
+Wave 9-D pre-auth row remains the only gate to holdout consumption).
+
+**Codex consult attestation (iter-32).** Resumed Codex session
+`019dc462-24c4-7d60-b217-6d5eda8199ec` (continuity from Wave 6 review through
+iter-27 + iter-29) for adversarial GL-0024 draft review under reasoning effort
+`high`. Codex returned **0 P0 + 5 P1 + 3 P2** findings; all 5 P1 fixes folded
+into the row text BEFORE commit: P1-1 verb downgrade `authorized` → `ROUTED` /
+"eligible for separate Wave 9-D pre-auth review"; P1-2 denominator preservation
+"0-of-2 admitted candidates" not "0-of-N"; P1-3 cut hypothesis-writing
+mechanism stories not evidenced by the iter-30/31 artefacts; P1-4 preserve W8-A
+per-candidate failure-mode taxonomy (redundant-and-bad ≠ orthogonal-but-powerless,
+not undifferentiated `exploratory` bucket); P1-5 add Wave 9-D scope guardrail
+clause forbidding factor additions, parameter retuning, and construction changes
+between GL-0024 and the Wave 9-D pre-auth row. P2 fixes also folded:
+metric/gate notation slop fixed throughout (`oos_sharpe=-1.2219 (G0 FAIL)`
+style, not `G0=-1.2219`); structural adherence to GL-0017/0019 row pattern
+(verdict + routing + archive policy + Iron Rule 12 non-authorization separated);
+V5 prospective-forward-frozen as one explicit sentence (not a P0).
+
+**Cross-references.** GL-0024 row in `docs/GOVERNANCE_LOG.md` §4 (iter-32 wrap;
+this section); GL-0021 + GL-0022 (iter-27 atomic pre-registration of W8-D + W8-A
++ V5 bars); GL-0023 (iter-29 W8-A restricted slate freeze + plan-of-record
+fallback retirement); GL-0019 (iter-25 Wave 6 Branch B EXPLORATORY VERDICT —
+origin of Wave 8 multi-workstream re-entry); GL-0017 (Wave 6 bars Iron Rule 9
+freeze pattern Wave 8 mirrored); §17.4 (Wave 6 outcome); §17.6 (Wave 8
+pre-registration); plan
+`/home/song856854132/.claude/plans/dreamy-riding-quasar.md` (full
+multi-workstream design — note: plan-of-record 5-candidate slate superseded by
+GL-0023 restricted 2-candidate slate, and iter-35 wrap compressed to iter-32 by
+GL-0023 zero-admission denominator); W8-D evidence
+`results/validation/wave8_d_single_factor/result.json` (iter-28 PASS sha256
+`1d1a8be0cb3c4cb1cb3e4de73f0e2b7654c5c080a33f51f5912c2dfd762d0bf2`); W8-A
+evidence `results/factors/52w_high_proximity/gate_results_v2_wave8.json`
+(iter-30 FAIL sha256
+`f7c15921f4e563f5ab5ebe9297f5d328097ca60173f067a108a083057afe6804`) and
+`results/factors/ewmac/gate_results_v2_wave8.json` (iter-31 FAIL sha256
+`7c0cdc546e3df89280f10f82f016a0d911b309e0181f1ada641eff2d86eb233f`); research
+log promise `WAVE_8_COMPLETE` emitted at iter-32 chained off iter-31 tip
+`6ab9488a5b207be47bb9a3fe07e135ec2140e0c66b8839797666fa0238202195`.
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
