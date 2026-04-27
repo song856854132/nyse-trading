@@ -1,0 +1,82 @@
+{
+  "ap6_compliance": "validation outcome of pre-registered frozen v2 G0-G5 (gates_v2.yaml) + V_A7 (GL-0021) + GL-0023 slate; no threshold modification, no admission decision changed, no config/gates*.yaml committed change.",
+  "candidate": "52w_high_proximity",
+  "candidate_compute_fn": "nyse_core.features.price_volume.compute_52w_high_proximity",
+  "candidate_data_source": "ohlcv",
+  "candidate_sign_convention": 1,
+  "construction": {
+    "annual_factor": 52,
+    "ensemble": false,
+    "k_of_n_coverage": false,
+    "n_quantiles": 5,
+    "rank_percentile_tiebreak": "default_pandas",
+    "weighting": "equal"
+  },
+  "implements_preregistration": "GL-0021 (V_A7 frozen iter-27..iter-32) + GL-0023 (W8-A restricted slate)",
+  "iron_rule_compliance": {
+    "rule_11_strategy_class_isolation": "PASS - W8-D evidence path (results/validation/wave8_d_single_factor/result.json) untouched",
+    "rule_12_holdout_re_authorization": "PASS - PASS/FAIL verdict creates NO path to holdout; Wave 9 governance row required",
+    "rule_1_no_post_2023_dates": "PASS - end-date <= 2023-12-31",
+    "rule_2_ap6_thresholds": "PASS - gates_v2.yaml sha256 = bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2",
+    "rule_3_no_db_mocks": "PASS - executed against research.duckdb",
+    "rule_7_gl0011_invariance": "PASS - writes ONLY to results/factors/52w_high_proximity/gate_results_v2_wave8.json; canonical gate_results.json untouched",
+    "rule_8_gates_frozen_pre_screen": "PASS - v2 G0-G5 thresholds and V_A7=0.50 unchanged"
+  },
+  "iteration": 30,
+  "iteration_tag": "iter-30",
+  "n_candidate_panel_rows": 179267,
+  "n_forward_return_rows": 198893,
+  "n_rebalance_dates": 418,
+  "no_renegotiation_clause": "GL-0021 (V_A7) + GL-0023 (slate) freeze for iter-27..iter-32. A FAIL here is genuine; iter-32 GL-0024 routes via Iron Rule 11 strategy-class isolation; no bar/slate renegotiation (Iron Rule 9).",
+  "task_id": 160,
+  "timestamp_source": "scripts.run_workstream_a_orthogonal_screen.main",
+  "v2_active_universe": [
+    "ivol_20d_flipped",
+    "piotroski_f_score",
+    "momentum_2_12",
+    "accruals",
+    "profitability"
+  ],
+  "v2_g0_g5": {
+    "gate_config_sha256_anchor": "bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2",
+    "gate_results": {
+      "G0": false,
+      "G1": false,
+      "G2": false,
+      "G3": false,
+      "G4": false,
+      "G5": true
+    },
+    "metrics": {
+      "ic_ir": -0.023524558451095415,
+      "ic_mean": -0.005487074559932347,
+      "marginal_contribution": -0.0038916323900271416,
+      "max_drawdown": -0.6051938546455145,
+      "max_return_decile_corr_with_admitted": 0.8209901973310657,
+      "oos_sharpe": -1.2218616987742146,
+      "permutation_p": 1.0
+    },
+    "passed_all": false,
+    "verdict": "FAIL"
+  },
+  "v_a7": {
+    "direction": "<",
+    "metric": "max_abs_pearson_corr_against_v2_active_ls",
+    "observed": 0.6961527587053679,
+    "per_factor_correlations": {
+      "accruals": 0.07675341208055204,
+      "ivol_20d_flipped": -0.6857503273480577,
+      "momentum_2_12": 0.6961527587053679,
+      "piotroski_f_score": 0.4760935797352443,
+      "profitability": 0.3601572351490775
+    },
+    "threshold": 0.5,
+    "verdict": "FAIL"
+  },
+  "w8_a_overall_verdict": "FAIL",
+  "wave": "Wave 8 W8-A orthogonal-discovery screen",
+  "window": {
+    "end": "2023-12-31",
+    "start": "2016-01-01"
+  }
+}
