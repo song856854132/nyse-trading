@@ -1960,6 +1960,198 @@ triggered); GL-0024 (Wave 8 D-ONLY wrap, routing eligibility — NOT authorizati
 strategy-grammar phrasing clarified by this row); plan
 `/home/song856854132/.claude/plans/dreamy-riding-quasar.md` v4 §iter-34 specification.
 
+### 17.9 Wave 9-D Outcome (GL-0026, iter-36 #190)
+
+**Status:** Wave 9-D long-short quintile `ivol_20d_flipped` holdout consumption COMPLETE.
+iter-35 #189 holdout was consumed under GL-0025 Iron Rule 1 EXCEPTION authorization with
+HAPPY PASS shape (`.holdout_used` present + sidecar `holdout_result.json.sha256` verifies
+bit-identically + `.holdout_in_progress` absent + payload well-formed; none of 5
+pre-registered crash shapes triggered). iter-36 #190 GL-0026 records verdict =
+**PASS-DECISIVE** under AP-6 binary holdout invariant: V_D1 OOS Sharpe **+0.7239** ≥ 0.30
+decisive floor (Sharpe > 0 = PASS per AP-6 binary + Lesson_Learn TWSE Rule §2.2 "only
+walk-forward OOS Sharpe matters"). V_D OVERALL = INDETERMINATE under AND-construction
+caveat from V_D4 bear_n_periods=0 in 2024-2025 bull-only macro regime (SPY > SMA200 for
+all 100 weekly long-short periods; observed=None per pre-execution coded behavior at
+`scripts/run_holdout_once_long_short.py:303,473` — NOT post-hoc methodology change). The
+V_D OVERALL INDETERMINATE caveat is informational and does NOT override the AP-6 binary
+PASS verdict. Promise `WAVE_9D_COMPLETE` emitted in iter-36 research_log entry.
+
+**Holdout Bars (Observed vs GL-0021 Frozen Thresholds, Bit-Identical iter-28 Replay):**
+
+| Bar | Observed | Threshold | Direction | Verdict |
+|-----|----------|-----------|-----------|---------|
+| V_D1 (OOS Sharpe, long-short quintile, 5d fwd ret, n_quantiles=5) | **+0.7239** | ≥ 0.30 | greater-or-equal | **PASS** |
+| V_D2 (Permutation p-value, n_reps=500, block_size=21) | **0.0020** | < 0.05 | strict less-than | **PASS** |
+| V_D3 (Block bootstrap 95% CI lower bound, n_reps=10000, block_size=63) | **0.2437** (CI_upper 3.110) | ≥ 0.20 | greater-or-equal | **PASS** |
+| V_D4 (Min Sharpe across SPY SMA200 bull/bear regime POST-HOC split) | **None** (bear_n_periods=0; bull_sharpe=0.7239 over 100 periods; bear_sharpe=null) | ≥ 0.20 | greater-or-equal | **INDETERMINATE** |
+
+V_D4 INDETERMINATE root cause: SPY > SMA200 (bull regime) for ALL 100 weekly long-short
+periods in 2024-2025; bear bucket empty; `min(bull_sharpe, bear_sharpe)` undefined when
+bear bucket is empty. Bull-only is consistent with realized 2024-2025 macro reality (no
+SPY 200d-MA breach). Pre-execution coded behavior at
+`scripts/run_holdout_once_long_short.py:303,473` (observed=None → INDETERMINATE for
+degenerate bars). Codex iter-35 PASS_READY_FOR_ITER36 P2 finding 0.90 confidence: "no new
+routing branch warranted; no PASS-DECISIVE-V_D4-VACUOUS sub-classification needed".
+
+**5-Shape Terminal-State Classification:**
+
+| Shape | Lockfile + Evidence Pattern | iter-35 Observed | iter-36 Routing |
+|-------|------------------------------|-------------------|------------------|
+| **HAPPY PASS** | `.holdout_used` present + `.holdout_in_progress` absent + sidecar verifies + payload well-formed | **OBSERVED** | AP-6 binary PASS → three-tier (FAIL / PASS-WEAK / PASS-DECISIVE) per OOS Sharpe |
+| CONSUMED_NO_VERDICT | `.holdout_in_progress` present + `.holdout_used` absent + no `holdout_result.json` | not triggered | A8 ABANDON terminal |
+| CONSUMED_PARTIAL_EVIDENCE | `.holdout_in_progress` present + partial `holdout_result.json` without sidecar / sidecar mismatch | not triggered | A8 ABANDON terminal |
+| CONSUMED_LOCKFILE_MISMATCH | evidence-without-lockfile OR both lockfiles absent (rename failed mid-flight) | not triggered | A8 ABANDON terminal |
+| CONSUMED_USED_EVIDENCE_INTEGRITY_FAIL | `.holdout_used` present + evidence present BUT sidecar sha256 mismatches actual bytes | not triggered | A8 ABANDON terminal |
+
+**AP-6 Binary Verdict + Three-Tier Outcome (Reporting Layer Only):**
+
+| AP-6 Binary | OOS Sharpe Range | Three-Tier Label | A-rule Trigger | Wave 10 Routing |
+|-------------|------------------|-------------------|----------------|------------------|
+| FAIL | ≤ 0 | FAIL | A8 ABANDON | Strategy archive; INDEPENDENT_VALIDATION_DRAFT.md §7 update; wind down NYSE cross-sectional equity domain |
+| PASS | (0, 0.30) | PASS-WEAK | A9 cost-drag DEFERRED to Wave 10 | Wave 10-paper-prep planning REQUIRED to compute cost-drag, apply A9 routing, include weak-signal disclosure framing |
+| **PASS** | **≥ 0.30** | **PASS-DECISIVE** | **None (clean PASS)** | **Wave 10-paper-prep ROUTING POINTER (one prerequisite of N satisfied; full paper entry remains gated on `config/deployment_ladder.yaml:7` + `docs/ABANDONMENT_CRITERIA.md` A12 + synthetic calibration regime)** |
+
+**iter-35 OOS Sharpe = +0.7239 → PASS-DECISIVE branch (clean PASS, NO A9 cost-drag
+applicable).** A9 cost-drag computation + A9 routing applies ONLY to PASS-WEAK branch
+per `docs/FRAMEWORK_AND_PIPELINE.md` §17.8 line 1821 frozen table ("PASS-DECISIVE | ≥ 0.30
+| None (clean PASS) | PASS | Wave 10-paper-prep eligibility (still gated on
+`deployment_ladder.yaml:7` + A12 + synthetic calibration)").
+
+**frozen_construction Verbatim Echo (15 Payload-Canonical Keys from `results/holdout/holdout_result.json`):**
+
+```
+n_quantiles                              = 5
+weighting                                = "equal"
+sign_convention                          = 1
+rank_percentile_tiebreak                 = "rng_default_rng_seed_date_toordinal"
+annual_factor_weekly_v_d1_v_d4           = 52
+perm_reps_v_d2                           = 500
+perm_block_v_d2                          = 21
+boot_reps_v_d3                           = 10000
+boot_block_v_d3                          = 63
+boot_alpha_v_d3                          = 0.05
+sma_window_v_d4                          = 200
+ensemble                                 = false
+k_of_n_coverage                          = false
+regime_overlay_applied_to_ls_series      = false
+spec_source                              = "GL-0025 + bit-identical iter-28 replay"
+```
+
+These are the 15 payload-canonical keys verified by Codex iter-36 consult P0
+finding 0.99 confidence — distinguished from runner-internal Python constants
+(e.g., `_HOLDOUT_START`, `_HOLDOUT_END`, `_W8D_EVIDENCE_SHA256`,
+`_RUNNER_OWN_SHA256`) which are NOT serialized into `frozen_construction`.
+
+**Iron Rule Attestation (verified iter-35 pre-flight, all 12 PASS):**
+
+- **Rule 1 (no post-2023 dates):** holdout window 2024-01-01..2025-12-31 is the
+  GL-0025 EXCEPTION authorized exactly once
+- **Rule 2 (AP-6 thresholds frozen):** `config/gates_v2.yaml` sha256
+  `bd0fc5de89307dab36fe82c12e0d921a7fa145376e2ef01aad8d000dd92979d2` and
+  `config/gates.yaml` sha256
+  `521b7571c330a5a1e87642eb9e5c0869ae8dc23cba3a1a175baf21a42f559af4` verified
+  bit-identical at runtime
+- **Rule 3 (no DB mocks):** `research.duckdb` (not mocked); FinMind-sourced
+  2024-2025 OHLCV (250,649 rows, 501 symbols, 2024-01-02..2025-12-31)
+- **Rule 6 (hash chain):** iter-36 chains off iter-35 tip
+  `9cee44c7a9b4c9d1fecad38acb950c483e3da53dfbd5d75151efe04b8dd0d0cd`
+- **Rule 7 (parallel-path discipline):** PASS — no canonical `gate_results.json`
+  touched; `holdout_result.json` is allowlisted (`scripts/check_holdout_guard.py`
+  sha256 `e2c9933f4aeff21df0a4216f8ddd771be642ecade08b678f7aecbb32d14cb8a1`
+  iter-33 P0-E provenance update)
+- **Rule 8 (gates frozen pre-screen):** V_D1..V_D4 thresholds bit-identical to
+  GL-0021; annualization conventions REPLICATED bit-identically from W8-D
+  iter-28 (V_D1/V_D4 call UNCHANGED `sharpe_ratio(returns, annual_factor=52)`
+  from `nyse_core.metrics`; V_D2/V_D3 inherit `_sharpe`'s sqrt(252) via
+  UNCHANGED `permutation_test`/`block_bootstrap_ci`)
+- **Rule 9 (anti-gaming):** `src/nyse_core/statistics.py:37` `_sharpe`
+  preserved bit-identical; `nyse_core.metrics.sharpe_ratio` preserved
+  bit-identical; runner imports both UNCHANGED; no library forking; no local
+  Sharpe helper
+- **Rule 10 (holdout-runner pre-land):**
+  `scripts/run_holdout_once_long_short.py` sha256
+  `48ebff546d1d2c8ceca777714bfc8a4068899cacbfd233dd57178d3fd65c5b65` matches
+  GL-0025 pin from iter-33 #187 P0-E commit `810b69a`
+- **Rule 11 (strategy-class isolation):** long-short quintile `ivol_20d_flipped`
+  only; ensemble path untouched; Wave 6 retired ensemble strategy class never
+  re-evaluated
+- **Rule 12 (holdout re-authorization):** GL-0025 commit
+  `aa93efc13c0de50e36dfa649f0cb41de67e49920` cited as authorizing row; verbatim
+  3-line zero-transitive-authority attestation present in 5 in-repo locations:
+  (1) iter-33 commit `810b69a`, (2) iter-34 commit `aa93efc`, (3) GL-0025 row
+  body in `docs/GOVERNANCE_LOG.md`, (4) `docs/FRAMEWORK_AND_PIPELINE.md` §17.8,
+  (5) `docs/audit/wave9d_iter34_gl0025_external_anchor.md`
+
+**Codex Attestation (iter-36 mandatory consult per plan §Wave 9-D Codex Consult Map row 36):**
+
+Session `019dd31c-8013-75e3-8bbf-efc743567181`, GATE FAIL_FROZEN_CONSTRUCTION_MISSTATED
+(prompt-level finding about misstating frozen_construction in the consult prompt itself —
+NOT a runner defect; runner output bit-identical to iter-28 specification). 1 P0 + 4 P1 +
+5 P2 ALL addressed in-flight before iter-36 commit landed:
+
+- **P0 (confidence 0.99):** 15 payload-canonical frozen_construction keys verbatim from
+  `holdout_result.json` (distinguished from runner-internal Python constants like
+  `_HOLDOUT_START` / `_W8D_EVIDENCE_SHA256` / `_RUNNER_OWN_SHA256` which are NOT
+  serialized into `frozen_construction`).
+- **P1(i) (confidence 0.97):** A9 cost-drag REMOVED from PASS-DECISIVE Wave 10 routing
+  pointer per §17.8 line 1821 frozen table "None (clean PASS)" — A9 deferral applies
+  ONLY to PASS-WEAK branch.
+- **P1(ii) (confidence 0.89):** V_D4 INDETERMINATE caveat narrowed to verbatim iter-35
+  research_log phrasing with cite `scripts/run_holdout_once_long_short.py:303,473` — no
+  claim of explicit GL-0021 pre-registration of degenerate-branch mechanics.
+- **P1(iii) (confidence 0.91):** 5 in-repo Iron Rule 12 attestation locations enumerated
+  explicitly = (1) iter-33 commit `810b69a`, (2) iter-34 commit `aa93efc`, (3) GL-0025
+  row body in `docs/GOVERNANCE_LOG.md`, (4) `docs/FRAMEWORK_AND_PIPELINE.md` §17.8,
+  (5) `docs/audit/wave9d_iter34_gl0025_external_anchor.md`.
+- **P1(iv) (confidence 0.88):** full path `docs/ABANDONMENT_CRITERIA.md` cited
+  throughout — not bare `ABANDONMENT_CRITERIA.md`.
+
+P2 findings (all "no defect" classifications): Q1 verdict layering correct (runner
+encodes verdict=PASS iff v_d1>0, outcome_three_tier=PASS-DECISIVE reporting only,
+v_d_overall_verdict=INDETERMINATE per
+`scripts/run_holdout_once_long_short.py:527`); Q4 condensed-payload wording accurate
+when explicitly noted as condensed and non-canonical; Q6 `WAVE_9D_COMPLETE` in
+research_log sufficient (GL-0026 body and commit body redundancy optional); Q7 no audit
+memo for PASS-DECISIVE consistent with current Wave 9-D posture; Q8 no-re-run clause
+already strong enough.
+
+**Wave 10 Routing Pointer (PASS-DECISIVE, NOT yet authorized):**
+
+The PASS-DECISIVE verdict satisfies ONE prerequisite of N toward paper-stage entry.
+Remaining prerequisites are Wave 10 scope and require fresh pre-registration mirroring
+GL-0017/GL-0021/GL-0025 freeze pattern:
+
+1. `config/deployment_ladder.yaml:7` `entry_gate: synthetic_calibration_passed AND
+   permutation_p < 0.05` — `synthetic_calibration_passed` flag NOT yet set
+2. `docs/ABANDONMENT_CRITERIA.md` A12 independent-validator sign-off — validator NOT yet
+   contracted per `docs/MODEL_VALIDATION.md` §1.5 (operator = developer = validator
+   currently)
+3. Synthetic calibration regime — NOT yet executed
+4. Full deployment ladder gate compliance
+
+**NO IMPLIED ENTITLEMENT.** PASS-DECISIVE verdict does NOT directly authorize paper
+entry. V_D OVERALL INDETERMINATE caveat from V_D4 bear_n_periods=0 is informational; no
+additional pre-registration of bear-regime path required for paper-stage entry per Codex
+iter-35 PASS_READY_FOR_ITER36 P2 finding (no PASS-DECISIVE-V_D4-VACUOUS sub-classification,
+no new routing branch warranted). NO RE-RUN of holdout permitted under any circumstance
+per Lesson_Learn TWSE §2.2 + Iron Rule 1 + strict consume-on-touch protocol.
+
+**Cross-references:** GL-0017 (Wave 6 freeze pattern, structural template); GL-0019
+(Wave 6 close, ensemble strategy class permanently retired); GL-0021 (V_D1..V_D4 +
+Iron Rules 11 & 12 inherited; thresholds bit-identical); GL-0022 (V5
+prospective-forward-frozen, NOT applicable to single-factor long-short); GL-0023 (W8-A
+restricted slate, Wave 9-A NOT triggered); GL-0024 (Wave 8 D-ONLY wrap, routing
+eligibility — NOT authorization); GL-0025 (Wave 9-D pre-authorization commit
+`aa93efc`, annotated tag `gl-0025-wave-9d-pre-auth`, external-anchor channel-2 Gmail
+server-attested Date 2026-04-28 12:55:31 +0800); plan
+`/home/song856854132/.claude/plans/dreamy-riding-quasar.md` v4 §iter-36 specification;
+`docs/FRAMEWORK_AND_PIPELINE.md` §17.8 (Wave 9-D Pre-Authorization, GL-0025 iter-34);
+`results/research_log.jsonl` iter-35 #189 holdout consumption tip
+`9cee44c7a9b4c9d1fecad38acb950c483e3da53dfbd5d75151efe04b8dd0d0cd`;
+`results/holdout/holdout_result.json` payload + sidecar
+`results/holdout/holdout_result.json.sha256`; `results/holdout/.holdout_used` lockfile
+(permanent).
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
