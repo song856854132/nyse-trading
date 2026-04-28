@@ -1780,6 +1780,186 @@ evidence `results/factors/52w_high_proximity/gate_results_v2_wave8.json`
 log promise `WAVE_8_COMPLETE` emitted at iter-32 chained off iter-31 tip
 `6ab9488a5b207be47bb9a3fe07e135ec2140e0c66b8839797666fa0238202195`.
 
+### 17.8 Wave 9-D Pre-Authorization (GL-0025, iter-34 #188)
+
+**Status (2026-04-28):** Wave 9-D long-short quintile `ivol_20d_flipped` strategy class
+holdout consumption pre-authorized via GL-0025 (this row IS the Iron Rule 12 separate
+authorization governance commitment). GL-0024's D-ONLY routing (Wave 8 wrap, iter-32 #162)
+established Wave 9-D **ELIGIBILITY** (W8-D PASS verdict at iter-28; evidence sha256
+`1d1a8be0...762d0bf2`); GL-0025 grants the **AUTHORIZATION** to execute. The iter-33 P0-E
+pre-landed runner `scripts/run_holdout_once_long_short.py` (sha256 `48ebff54...`,
+22 test functions across 11 scenario classes all PASS, separate commit `810b69a0`) is
+now LIVE for iter-35 holdout consumption (one-way door).
+
+**Strategy-grammar clarification (GL-0021/GL-0024 inherited from W8-D iter-28):**
+GL-0021 line 90 + GL-0024 line 93 describe the W8-D compute path as `top_n=20,
+sell_buffer=1.5, equal_weight, regime overlay`. That phrasing was a documentation error
+inherited from `config/strategy_params.yaml` defaults — the actual W8-D iter-28
+implementation in `scripts/run_workstream_d_single_factor.py:255` is
+`compute_long_short_returns(panel, fwd_returns, n_quantiles=5)` LONG-SHORT QUINTILE.
+Wave 9-D consumes holdout for the IMPLEMENTED strategy class. The `top_n=20`/
+`sell_buffer`/`regime_overlay` parameters in `strategy_params.yaml` describe a
+DIFFERENT (unbuilt) construction class which would require fresh Wave 10+
+pre-registration. Iron Rule 9 anti-tamper forbids retroactive edits to GL-0021/GL-0024;
+this clarification stands as the canonical cross-reference.
+
+**Wave 9-D Pre-Registered Bars (V_D1..V_D4, inherited bit-identical from GL-0021,
+applied to 2024-2025 holdout via bit-identical W8-D iter-28 compute path replay):**
+
+| Bar | Metric | Threshold | Direction | Annualization (inherited iter-28) | Compute path |
+|-----|--------|-----------|-----------|-----------------------------------|---------------|
+| V_D1 | Walk-forward OOS Sharpe (5d fwd ret, n_quantiles=5 long-short) | ≥ 0.30 | greater-or-equal | sqrt(52) weekly via UNCHANGED `sharpe_ratio(returns, annual_factor=52)` from `nyse_core.metrics` | `nyse_core.metrics.sharpe_ratio` (no local helper) |
+| V_D2 | Permutation p-value (stationary bootstrap, 500 reps, block_size=21) | < 0.05 | strict less-than | unit-free percentile (Sharpe units cancel inside test) | `nyse_core.statistics.permutation_test` UNCHANGED (internal `_sharpe` sqrt(252)) |
+| V_D3 | Block bootstrap 95% CI lower bound (10000 reps, block_size=63) | ≥ 0.20 | greater-or-equal | sqrt(252) daily-annualized via UNCHANGED primitive (inherited from iter-28; not retroactively re-unit'd) | `nyse_core.statistics.block_bootstrap_ci` UNCHANGED |
+| V_D4 | Min Sharpe across SPY SMA200 bull/bear regime POST-HOC split of long-short series | ≥ 0.20 | greater-or-equal | sqrt(52) weekly via UNCHANGED `sharpe_ratio(returns, annual_factor=52)` from `nyse_core.metrics` | `nyse_core.metrics.sharpe_ratio` (no local helper) |
+
+**AP-6 binary verdict (Sharpe > 0 PASS) underneath three-tier informational reporting:**
+
+| Outcome | Holdout OOS Sharpe | A-rule trigger | Wave 9-D verdict | Wave 10 routing |
+|---|---|---|---|---|
+| FAIL | ≤ 0 | A8 ABANDON (most consequential test; no iteration permitted) | Strategy archive | INDEPENDENT_VALIDATION_DRAFT.md §7 update; wind down NYSE cross-sectional equity domain |
+| PASS-WEAK | (0, 0.30) | A9 cost-drag DEFERRED to Wave 10 paper-prep | PASS (binary AP-6); informational weak-signal flag | Wave 10-paper-prep planning REQUIRED — (a) compute cost-drag, (b) apply A9 routing, (c) include weak-signal disclosure framing |
+| PASS-DECISIVE | ≥ 0.30 | None (clean PASS) | PASS | Wave 10-paper-prep eligibility (still gated on `deployment_ladder.yaml:7` + A12 + synthetic calibration) |
+
+**Strict consume-on-touch pre-registration — 5 distinct filesystem/lockfile/sidecar
+terminal shapes covering 6 verdict outcomes (PASS and FAIL share filesystem shape (a),
+distinguished by observed Sharpe value, not by lockfile state; 4 crash-shape branches
+(b)-(e) all → A8 ABANDON; Codex iter-34 rev2 P2-1 finding addressed):**
+
+- **Shape (a) — `.holdout_used` present + sidecar verifies + valid `holdout_result.json`** —
+  supports two verdict outcomes distinguished by Sharpe value: **PASS** (`verdict=PASS`,
+  Sharpe > 0; three-tier outcome PASS-WEAK if 0 < Sharpe < 0.30 with A9 cost-drag DEFERRED
+  to Wave 10, or PASS-DECISIVE if Sharpe ≥ 0.30) and **FAIL** (`verdict=FAIL`, Sharpe ≤ 0;
+  A8 ABANDON triggered)
+- **Shape (b) — CONSUMED_NO_VERDICT**: `.holdout_in_progress` present + `.holdout_used`
+  absent + no `holdout_result.json` (compute exception after lockfile create)
+- **Shape (c) — CONSUMED_PARTIAL_EVIDENCE**: `.holdout_in_progress` present + partial
+  evidence written without sidecar / with sidecar mismatch
+- **Shape (d) — CONSUMED_LOCKFILE_MISMATCH**: `.holdout_in_progress` present +
+  `holdout_result.json` present + sidecar present + `.holdout_used` ABSENT (atomic
+  `os.replace` of `.holdout_in_progress` → `.holdout_used` failed AFTER successful
+  evidence write — matches landed `scripts/run_holdout_once_long_short.py:235-247`
+  docstring contract + landed test `tests/unit/test_run_holdout_once_long_short.py:463-500`
+  assertions)
+- **Shape (e) — CONSUMED_USED_EVIDENCE_INTEGRITY_FAIL**: `.holdout_used` present +
+  `holdout_result.json` present BUT sidecar sha256 mismatches actual bytes (Codex rev4
+  P1 5th terminal shape; lockfile rename succeeded but bytes are corrupt)
+
+Total: 5 filesystem shapes, 6 verdict outcomes — no contradiction.
+
+**Wave 10 routing pointer (PASS branches only):** Wave 9-D PASS verdict satisfies ONE
+prerequisite of N toward paper-stage entry; remaining gates (`config/deployment_ladder.yaml:7`
+synthetic_calibration_passed AND permutation_p < 0.05; ABANDONMENT_CRITERIA.md A12
+independent-validator sign-off; A9 cost-drag if PASS-WEAK) remain Wave 10 scope.
+No implied entitlement; no auto-authorization for paper-stage entry.
+
+**Wave 9-D scope guardrail (forward-binding from GL-0024 §17.7, mirrors iter-28
+bit-identical):** between this row (iter-34) and iter-35 holdout consumption: NO factor
+additions, NO parameter retuning, NO construction changes, NO bar renegotiation, NO
+`statistics.py:37` mutation, NO `metrics.py` mutation, NO
+`scripts/run_workstream_d_single_factor.py` mutation. Deviation = Wave 10 fresh
+pre-registration (mirroring GL-0017's Iron Rule 9 freeze pattern).
+
+**Pre-flight scope (runner-internal vs operator-manual):** RUNNER-INTERNAL pre-flight
+(`scripts/run_holdout_once_long_short.py:161-214`) verifies ONLY 3 frozen-hash anchors
+(`gates_v2.yaml`, `gates.yaml`, W8-D evidence) + hardcoded window equality + lockfile
+state. Runner's OWN sha256 is computed POST-COMPUTE for `frozen_construction` payload
+echo (line 727), NOT pre-flight refusal. ITER-35 OPERATOR pre-flight (manual, OUTSIDE
+runner code) verifies the additional 4 anchors before invoking the runner: (i) runner
+own-sha256 against GL-0025's pinned value; (ii) `scripts/run_holdout_once.py` read-only
+sha; (iii) `scripts/run_workstream_d_single_factor.py` read-only sha; (iv)
+`scripts/check_holdout_guard.py` NEW sha (provenance update from iter-33).
+
+**Iron Rule 1-12 compliance attestation:** all 12 rules carry forward. Iron Rule 12
+satisfied by THIS row (verbatim 3-line zero-transitive-authority attestation enforced).
+Iron Rule 10 P0-E pre-landed iter-33 in SEPARATE commit `810b69a0` per pattern
+established in GL-0017 (P0-A/P0-C). Iron Rule 9 strict reading: bit-identical iter-28
+replay — `statistics.py:37` `_sharpe` AND `metrics.py` `sharpe_ratio` preserved
+bit-identical; no library forking, no callback wrapping, no local helper in runner;
+block sizes 21/63 separately preserved per Codex rev2 P0-1; GL-0021/GL-0024 stale
+strategy grammar clarified via this row's explicit clarification clause (NOT
+retroactively edited per anti-tamper).
+
+**Verbatim 3-line zero-transitive-authority attestation** (matching iter-33 commit
+`810b69a0` message verbatim):
+
+1. ALL authority to consume the 2024-2025 holdout originates in this GL-0025 row.
+2. GL-0024 routing GRANTS ZERO authority to consume; W8-D PASS verdict establishes
+   ELIGIBILITY only.
+3. iter-33 P0-E pre-landed runner is DORMANT until GL-0025 commits; runner sha256
+   pin without committed governance row = NO authority.
+
+**Codex consult attestation:** session `019dcf3e-f28d-7c20-ac9b-46493b054c40` resumed
+for iter-34 GL-0025 + §17.8 + verbatim 3-line attestation red-team review per plan
+§Wave 9-D Codex Consult Map mandatory clause before this row landed. Multi-revision
+adversarial closure: rev1 returned 3 P0 + 3 P1 + 1 P2 (GATE: FAIL_GOVERNANCE_MISMATCH)
+— all P0+P1 closed in rev2 drafts; rev2 returned 0 P0 + 2 P1 + 1 P2 NEW (GATE:
+FAIL_P1_REMAINING) — all P1+P2 closed in rev3 drafts; rev3 returned 0 P0 + 1 P1 + 0 P2
+NEW (GATE: FAIL_EXTERNAL_ANCHOR_PATTERN) — P1 closed in rev4 drafts; rev4 returned 0
+P0 + 1 P1 + 0 P2 NEW (GATE: FAIL_SEQUENCE_CONTRADICTION) — P1 closed in rev5 drafts
+(option 2 from Codex's offered fixes: post-commit publication + iter-35 pre-flight
+verification, no `Channel-2-Anchor:` trailer in iter-34 commit footer, channel-2
+metadata stays off-repo entirely); rev5 returned 0 P0 + 1 P1 + 0 P2 NEW (GATE:
+FAIL_STALE_TRAILER_REFERENCE — stale `Channel-2-Anchor:` trailer reference in DRAFT 1
+row body cross-references list contradicting rev5 main-body fix) — P1 closed in rev6
+drafts (stale trailer phrase replaced with option-2 framing in cross-references list;
+row body now states option-2 framing consistently in BOTH the multi-revision closure
+paragraph AND the cross-references list AND the External anchor reinforcement section
+AND the §17.8 main body); rev6 GATE outcome `PASS_READY_FOR_ITER34` (this section is committed only after rev6 returns
+PASS_READY_FOR_ITER34; no pre-certification of unconcluded reviews; Codex iter-34
+rev2 P1-2 finding addressed).
+
+**External anchor reinforcement (Lesson_Learn anti-tamper pattern, mirrors GL-0017
+two-channel pattern + iter-21 implementation precedent EXACTLY; Codex iter-34 rev1
+P1-1 + rev2 P1-1 + rev3 P1-1 findings addressed):** GL-0017's anti-tamper rule
+requires TWO genuinely independent non-repo timestamped channels — one channel alone
+is explicitly insufficient (cross-ref `docs/FRAMEWORK_AND_PIPELINE.md:1289`, `:1318`).
+This section cites both: **(channel 1, primary)** signed annotated git tag
+`gl-0025-wave-9d-pre-auth` pushed to `origin` remote (GitHub) alongside this commit —
+GitHub-side tag-receipt timestamp is independent of the local repo's hash chain and is
+preserved by the GitHub git host independently of any local mutation; **(channel 2,
+reinforcing)** operator-published non-repo timestamped publication of this commit's
+metadata (commit SHA + tag SHA + ISO-8601 timestamp + Codex consult session id) via
+authenticated public GitHub gist (`gh gist create`) OR operator-controlled
+email-to-self with timestamp metadata — operator chooses the medium and performs
+publication POST-COMMIT (mirroring GL-0017 iter-21 implementation precedent EXACTLY:
+the GL-0017 row text states the channel 2 RULE but does NOT itself capture a specific
+gist URL/email message-id; the operator performed the off-repo publication post-commit
+and the iter-22 pre-flight verified the artifact existed). For GL-0025, the iter-34
+commit message footer contains NO `Channel-2-Anchor:` trailer (no URL/message-id
+ever crosses the iter-34 commit boundary in either direction — mirrors GL-0017
+iter-21 implementation precedent EXACTLY); operator publishes the off-repo artifact
+post-commit at their own gmail or gist account; iter-35 OPERATOR pre-flight (per
+plan §iter-35 step 1) verifies the operator-attested off-repo artifact exists
+before invoking the runner; the verification fact (artifact-exists Y/N + ISO-8601
+verification timestamp + channel-2 medium operator chose) is logged to the iter-35
+research-log entry — channel-2 publication metadata stays off-repo entirely (Codex
+iter-34 rev4 P1-1 sequencing-contradiction fix per option 2). Both channels are
+non-repo, both timestamped externally, both tamper-evident,
+both operator-attestable; together they satisfy the GL-0017 two-channel pattern. The
+Codex API session `019dcf3e-f28d-7c20-ac9b-46493b054c40` retained server-side at
+OpenAI is classified as **Codex consult attestation** (multi-revision adversarial
+review transcript record — rev1 + rev2 + rev3 + rev4 + rev5 GATE outcomes archived
+AI-platform-side), NOT one of the two anchor channels — Codex transcripts are
+AI-platform-side and NOT operator-published, so they do not satisfy GL-0017's `(2)`
+operator-controlled channel requirement (Codex iter-34 rev3 P1-1 finding addressed).
+The in-repo `docs/audit/wave9d_iter34_gl0025_external_anchor.md` (created by this row)
+is internal cross-reference COPY only — ISO-8601 timestamp + commit SHA + tag SHA +
+Codex consult session id + rev1 + rev2 + rev3 + rev4 + rev5 GATE results +
+channel-2 RULE description (mirrors GL-0017 iter-21: the in-repo audit copy
+describes channel-2 RULE only and captures NO specific URL/message-id; off-repo
+publication metadata stays off-repo entirely per Codex iter-34 rev4 P1-1
+sequencing-contradiction fix) — labeled as INTERNAL COPY for in-repo navigation,
+NOT one of the two anchor channels.
+
+**Cross-references:** GL-0017 (Wave 6 freeze pattern, structural template); GL-0019
+(Wave 6 close, ensemble strategy class permanently retired); GL-0021 (V_D1..V_D4 +
+Iron Rules 11 & 12 inherited; strategy-grammar phrasing clarified by this row);
+GL-0022 (V5 prospective-forward-frozen); GL-0023 (W8-A restricted slate, Wave 9-A NOT
+triggered); GL-0024 (Wave 8 D-ONLY wrap, routing eligibility — NOT authorization;
+strategy-grammar phrasing clarified by this row); plan
+`/home/song856854132/.claude/plans/dreamy-riding-quasar.md` v4 §iter-34 specification.
+
 ### Phase 3 Codex Review Detail (Most Recent)
 
 An independent code review by OpenAI Codex evaluated the Phase 3 Factor Research implementation against quant-firm standards. Initial score: 3/10. After 10 targeted fixes across 14 files, the codebase was hardened to production quality. Key fixes:
